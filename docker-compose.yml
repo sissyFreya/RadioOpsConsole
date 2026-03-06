@@ -1,0 +1,192 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-radioops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-radioops}
+      POSTGRES_DB: ${POSTGRES_DB:-radioops}
+    # Port NOT exposed to host — DB is internal only. Expose only if you need
+    # direct psql access from the host (dev only, never in production).
+    # ports:
+    #   - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-radioops} -d ${POSTGRES_DB:-radioops}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9002:9000"   # S3 API (mapped to 9002 to avoid conflict with agent)
+      - "9003:9001"   # MinIO web console
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9000/minio/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  icecast:
+    build:
+      context: ./infra/icecast
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/localhost/8000' 2>/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  icecast-proxy:
+    build:
+      context: ./infra/icecast-proxy
+    depends_on:
+      icecast:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  liquidsoap:
+    build:
+      context: ./infra/liquidsoap
+    depends_on:
+      icecast:
+        condition: service_healthy
+    environment:
+      RADIO_ID: ${RADIO_ID:-1}
+    ports:
+      - "8001:8001"  # DJ live ingest (connect your PC here)
+    volumes:
+      - media:/data
+
+  agent:
+    build:
+      context: ./agent
+    environment:
+      MOCK_MODE: "true"
+      ALLOWED_SERVICES: "icecast,liquidsoap"
+      DATA_ROOT: "/data"
+    volumes:
+      - media:/data
+    # Port NOT exposed to host — agent is internal only, reachable by backend.
+    # ports:
+    #   - "9000:9000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/status', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-radioops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-radioops}
+      POSTGRES_DB: ${POSTGRES_DB:-radioops}
+      POSTGRES_HOST: ${POSTGRES_HOST:-db}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      JWT_SECRET: ${JWT_SECRET:-change-me-super-secret}
+      JWT_ACCESS_MINUTES: ${JWT_ACCESS_MINUTES:-60}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@local}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
+      DEFAULT_AGENT_URL: ${AGENT_URL:-http://agent:9000}
+      MEDIA_ROOT: "/data"
+      ICECAST_PUBLIC_BASE_DEFAULT: "http://localhost:8000"
+      ICECAST_INTERNAL_BASE_DEFAULT: "http://icecast:8000"
+      # Redis cache — uncomment to enable:
+      # REDIS_URL: "redis://redis:6379/0"
+      # S3/MinIO — uncomment to switch from local filesystem storage:
+      # S3_ENDPOINT: "http://minio:9000"
+      # S3_ACCESS_KEY: "${MINIO_ROOT_USER:-minioadmin}"
+      # S3_SECRET_KEY: "${MINIO_ROOT_PASSWORD:-minioadmin}"
+      # S3_BUCKET: "radioops"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      agent:
+        condition: service_started
+      icecast:
+        condition: service_healthy
+      liquidsoap:
+        condition: service_started
+    ports:
+      - "8081:8000"
+    volumes:
+      - media:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Empty = use relative URLs proxied by nginx — no CORS.
+        # Override only if frontend is served from a different origin than the API.
+        VITE_API_BASE: ${VITE_API_BASE:-}
+    ports:
+      - "5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  pgdata:
+  media:
+  minio_data:
+  prometheus_data:
+  grafana_data:

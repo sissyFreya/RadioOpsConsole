@@ -1,0 +1,1059 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>RadioOps Stream</title>
+    <meta
+      name="description"
+      content="RadioOps live stream player with source switching and listening controls."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg-0: #0b1117;
+        --bg-1: #101823;
+        --bg-2: #0c151f;
+        --accent: #20e3b2;
+        --accent-2: #f7b731;
+        --danger: #ff6b6b;
+        --text: #eef2f6;
+        --muted: #9aa7b6;
+        --card: rgba(14, 20, 28, 0.72);
+        --stroke: rgba(255, 255, 255, 0.08);
+        --stroke-strong: rgba(255, 255, 255, 0.16);
+        --shadow: rgba(0, 0, 0, 0.45);
+        --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+        color: var(--text);
+        background: radial-gradient(circle at 20% 20%, #14263a 0%, transparent 45%),
+          radial-gradient(circle at 80% 10%, #1d2f3f 0%, transparent 40%),
+          linear-gradient(140deg, var(--bg-0), var(--bg-1) 45%, var(--bg-2) 100%);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      .orb {
+        position: fixed;
+        width: 380px;
+        height: 380px;
+        border-radius: 50%;
+        filter: blur(80px);
+        opacity: 0.35;
+        z-index: 0;
+        animation: float 12s ease-in-out infinite;
+      }
+
+      .orb.one {
+        background: #2d9cdb;
+        top: -120px;
+        right: -100px;
+      }
+
+      .orb.two {
+        background: #20e3b2;
+        bottom: -140px;
+        left: -120px;
+        animation-delay: -4s;
+      }
+
+      .wrap {
+        position: relative;
+        z-index: 1;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 48px 24px 64px;
+      }
+
+      .hero {
+        display: grid;
+        gap: 16px;
+        margin-bottom: 32px;
+        animation: reveal 0.7s ease both;
+      }
+
+      .live-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: rgba(32, 227, 178, 0.18);
+        color: var(--accent);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 12px;
+      }
+
+      .live-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 12px rgba(32, 227, 178, 0.8);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(32px, 5vw, 54px);
+        line-height: 1.05;
+        letter-spacing: -0.02em;
+      }
+
+      .subtitle {
+        margin: 0;
+        font-size: 18px;
+        color: var(--muted);
+        max-width: 720px;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .button,
+      .ghost {
+        border: 1px solid transparent;
+        border-radius: 999px;
+        padding: 12px 20px;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+        text-decoration: none;
+      }
+
+      .button {
+        background: linear-gradient(120deg, var(--accent), var(--accent-2));
+        color: #081117;
+        box-shadow: 0 12px 28px rgba(32, 227, 178, 0.3);
+      }
+
+      .button:hover,
+      .ghost:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
+      }
+
+      .ghost {
+        background: transparent;
+        color: var(--text);
+        border-color: var(--stroke);
+      }
+
+      .chip {
+        background: rgba(255, 255, 255, 0.02);
+        color: var(--text);
+        border: 1px solid var(--stroke);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        cursor: pointer;
+        transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+      }
+
+      .chip:hover {
+        transform: translateY(-1px);
+        border-color: var(--stroke-strong);
+      }
+
+      .chip.active {
+        background: rgba(32, 227, 178, 0.17);
+        border-color: rgba(32, 227, 178, 0.65);
+        color: var(--accent);
+      }
+
+      .chip.warn {
+        border-color: rgba(255, 107, 107, 0.45);
+      }
+
+      .chip.warn.active {
+        background: rgba(255, 107, 107, 0.12);
+        border-color: rgba(255, 107, 107, 0.7);
+        color: #ffc2c2;
+      }
+
+      .player-card {
+        background: var(--card);
+        border: 1px solid var(--stroke);
+        border-radius: 24px;
+        padding: 24px;
+        display: grid;
+        gap: 18px;
+        box-shadow: 0 20px 60px var(--shadow);
+        backdrop-filter: blur(12px);
+        animation: reveal 0.7s ease both;
+        animation-delay: 0.1s;
+      }
+
+      .player-meta {
+        display: grid;
+        gap: 16px;
+      }
+
+      .label {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+
+      .value {
+        font-size: 20px;
+        font-weight: 600;
+      }
+
+      .meta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+      }
+
+      .control-board {
+        display: grid;
+        gap: 12px;
+        border: 1px solid var(--stroke);
+        border-radius: 16px;
+        background: rgba(6, 10, 14, 0.45);
+        padding: 14px;
+      }
+
+      .transport-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .volume-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .volume-wrap {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .volume-wrap label {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      #volume {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+
+      .mode-text {
+        font-size: 12px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+
+      audio {
+        width: 100%;
+        accent-color: var(--accent);
+        border-radius: 12px;
+      }
+
+      .status {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .list-grid {
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        animation: reveal 0.7s ease both;
+        animation-delay: 0.15s;
+      }
+
+      .list-card {
+        background: rgba(11, 17, 23, 0.72);
+        border: 1px solid var(--stroke);
+        border-radius: 18px;
+        padding: 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .list-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+
+      .list-body {
+        display: grid;
+        gap: 8px;
+        max-height: 220px;
+        overflow: auto;
+        padding-right: 4px;
+      }
+
+      .list-empty {
+        border: 1px dashed var(--stroke);
+        border-radius: 12px;
+        padding: 12px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .source-item {
+        width: 100%;
+        border: 1px solid var(--stroke);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.015);
+        color: var(--text);
+        text-align: left;
+        padding: 10px 12px;
+        cursor: pointer;
+        transition: border-color 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+      }
+
+      .source-item:hover {
+        transform: translateY(-1px);
+        border-color: var(--stroke-strong);
+      }
+
+      .source-item.active {
+        border-color: rgba(32, 227, 178, 0.7);
+        background: rgba(32, 227, 178, 0.1);
+      }
+
+      .source-main {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .source-sub {
+        display: flex;
+        gap: 10px;
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 4px;
+        overflow: hidden;
+      }
+
+      .source-sub span {
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+      }
+
+      .history-item {
+        border: 1px solid var(--stroke);
+        border-radius: 12px;
+        padding: 8px 10px;
+        display: grid;
+        gap: 4px;
+        background: rgba(255, 255, 255, 0.015);
+      }
+
+      .history-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+
+      .history-title {
+        font-size: 13px;
+        line-height: 1.3;
+      }
+
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-top: 24px;
+        animation: reveal 0.7s ease both;
+        animation-delay: 0.2s;
+      }
+
+      .info-card {
+        background: rgba(11, 17, 23, 0.7);
+        border: 1px solid var(--stroke);
+        border-radius: 18px;
+        padding: 16px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .code {
+        font-family: var(--mono);
+        font-size: 13px;
+        color: var(--accent-2);
+        word-break: break-all;
+      }
+
+      .hint {
+        margin-top: 24px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      @keyframes reveal {
+        from {
+          opacity: 0;
+          transform: translateY(12px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(18px);
+        }
+      }
+
+      @media (max-width: 720px) {
+        .wrap {
+          padding: 32px 18px 48px;
+        }
+
+        .player-card {
+          padding: 18px;
+        }
+
+        .meta-row {
+          gap: 16px;
+        }
+
+        .volume-row {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="orb one"></div>
+    <div class="orb two"></div>
+
+    <main class="wrap">
+      <header class="hero">
+        <div class="live-tag"><span class="live-dot"></span> Live Stream</div>
+        <h1>RadioOps Stream</h1>
+        <p class="subtitle">
+          Control your listening session: switch live sources, use random mode,
+          and track what is currently on air.
+        </p>
+        <div class="actions">
+          <button class="button" id="copy-btn" type="button">Copy Stream URL</button>
+          <a class="ghost" id="open-link" href="/stream">Open Audio Only</a>
+        </div>
+      </header>
+
+      <section class="player-card">
+        <div class="player-meta">
+          <div>
+            <div class="label">Now Playing</div>
+            <div class="value" id="now-playing">Loading...</div>
+          </div>
+          <div class="meta-row">
+            <div>
+              <div class="label">Listeners</div>
+              <div class="value" id="listeners">--</div>
+            </div>
+            <div>
+              <div class="label">Mount</div>
+              <div class="value" id="mount-name">/stream</div>
+            </div>
+            <div>
+              <div class="label">Updated</div>
+              <div class="value" id="updated-at">--:--</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="control-board">
+          <div class="transport-row">
+            <button class="chip" id="prev-btn" type="button">Prev</button>
+            <button class="chip" id="play-btn" type="button">Play</button>
+            <button class="chip" id="next-btn" type="button">Next</button>
+            <button class="chip" id="shuffle-btn" type="button" aria-pressed="false">Shuffle</button>
+            <button class="chip warn" id="repeat-btn" type="button" aria-pressed="false">Repeat: Off</button>
+          </div>
+          <div class="volume-row">
+            <div class="volume-wrap">
+              <label for="volume">Volume</label>
+              <input id="volume" type="range" min="0" max="1" step="0.01" value="1" />
+            </div>
+            <button class="chip" id="mute-btn" type="button" aria-pressed="false">Mute</button>
+          </div>
+          <div class="mode-text" id="mode-text">Mode: sequential source switching.</div>
+        </div>
+
+        <audio id="audio" controls preload="none">
+          <source src="/stream" type="audio/mpeg" />
+          <source src="/stream" type="audio/ogg" />
+        </audio>
+        <div class="status" id="status">Checking stream status...</div>
+      </section>
+
+      <section class="list-grid">
+        <article class="list-card">
+          <div class="list-title">Available Sources</div>
+          <div class="list-body" id="source-list"></div>
+        </article>
+        <article class="list-card">
+          <div class="list-title">Recently Heard</div>
+          <div class="list-body" id="history-list"></div>
+        </article>
+      </section>
+
+      <section class="info-grid">
+        <div class="info-card">
+          <div class="label">Stream URL</div>
+          <div class="code" id="stream-url"></div>
+        </div>
+        <div class="info-card">
+          <div class="label">Format</div>
+          <div class="value" id="format">Audio stream</div>
+        </div>
+        <div class="info-card">
+          <div class="label">Peak Listeners</div>
+          <div class="value" id="peak">--</div>
+        </div>
+      </section>
+
+      <div class="hint">
+        Tip: this is live radio, so upcoming tracks may be unknown. Use source
+        switching, random mode and history to keep control of your listening.
+      </div>
+    </main>
+
+    <script>
+      const statusUrl = "/status-json.xsl";
+      const fallbackMount = "/stream";
+      const repeatModes = ["off", "all", "one"];
+
+      const els = {
+        nowPlaying: document.getElementById("now-playing"),
+        listeners: document.getElementById("listeners"),
+        peak: document.getElementById("peak"),
+        mount: document.getElementById("mount-name"),
+        format: document.getElementById("format"),
+        updated: document.getElementById("updated-at"),
+        status: document.getElementById("status"),
+        streamUrl: document.getElementById("stream-url"),
+        openLink: document.getElementById("open-link"),
+        copyBtn: document.getElementById("copy-btn"),
+        sourceList: document.getElementById("source-list"),
+        historyList: document.getElementById("history-list"),
+        audio: document.getElementById("audio"),
+        prevBtn: document.getElementById("prev-btn"),
+        playBtn: document.getElementById("play-btn"),
+        nextBtn: document.getElementById("next-btn"),
+        shuffleBtn: document.getElementById("shuffle-btn"),
+        repeatBtn: document.getElementById("repeat-btn"),
+        volume: document.getElementById("volume"),
+        muteBtn: document.getElementById("mute-btn"),
+        modeText: document.getElementById("mode-text"),
+      };
+
+      const state = {
+        sources: [],
+        activeIndex: -1,
+        history: [],
+        shuffle: false,
+        repeat: "off",
+      };
+
+      function setStatus(text) {
+        els.status.textContent = text;
+      }
+
+      function formatClock(date) {
+        const hh = String(date.getHours()).padStart(2, "0");
+        const mm = String(date.getMinutes()).padStart(2, "0");
+        return `${hh}:${mm}`;
+      }
+
+      function getActiveSource() {
+        return state.sources[state.activeIndex] || null;
+      }
+
+      function getStreamUrl(source) {
+        return source?.url || `${window.location.origin}${fallbackMount}`;
+      }
+
+      function updateStreamLink(url) {
+        const value = url || `${window.location.origin}${fallbackMount}`;
+        els.streamUrl.textContent = value;
+        els.openLink.href = value;
+      }
+
+      function parseMount(rawUrl) {
+        if (!rawUrl) return "";
+        try {
+          const parsed = new URL(rawUrl, window.location.origin);
+          return parsed.pathname || "";
+        } catch (err) {
+          return "";
+        }
+      }
+
+      function normalizeSources(stats) {
+        if (!stats || !stats.source) {
+          return [];
+        }
+
+        const arr = Array.isArray(stats.source) ? stats.source : [stats.source];
+        return arr.map((source, idx) => {
+          const rawUrl = String(source.listenurl || "").trim();
+          const guessedMount =
+            source.mount || parseMount(rawUrl) || (idx === 0 ? fallbackMount : `/stream-${idx + 1}`);
+          const mount = guessedMount.startsWith("/") ? guessedMount : `/${guessedMount}`;
+
+          let url = `${window.location.origin}${mount}`;
+          if (rawUrl) {
+            try {
+              url = new URL(rawUrl, window.location.origin).toString();
+            } catch (err) {}
+          }
+
+          const title =
+            source.title ||
+            source.song ||
+            source.server_name ||
+            source.server_description ||
+            "Live stream";
+
+          return {
+            key: `${mount}::${url}`,
+            mount,
+            url,
+            title: String(title),
+            listeners: source.listeners ?? stats.listeners ?? "--",
+            peak: source.listener_peak ?? stats.listener_peak ?? "--",
+            codec: source.server_type || source.codec || "Audio stream",
+          };
+        });
+      }
+
+      function preferredIndex(sources) {
+        const idx = sources.findIndex((source) => source.mount === fallbackMount);
+        return idx >= 0 ? idx : 0;
+      }
+
+      function updatePlayButton() {
+        els.playBtn.textContent = els.audio.paused ? "Play" : "Pause";
+      }
+
+      function updateMuteButton() {
+        const muted = els.audio.muted || Number(els.volume.value) <= 0;
+        els.muteBtn.classList.toggle("active", muted);
+        els.muteBtn.setAttribute("aria-pressed", muted ? "true" : "false");
+        els.muteBtn.textContent = muted ? "Unmute" : "Mute";
+      }
+
+      function updateShuffleButton() {
+        els.shuffleBtn.classList.toggle("active", state.shuffle);
+        els.shuffleBtn.setAttribute("aria-pressed", state.shuffle ? "true" : "false");
+      }
+
+      function updateRepeatButton() {
+        const on = state.repeat !== "off";
+        els.repeatBtn.classList.toggle("active", on);
+        els.repeatBtn.setAttribute("aria-pressed", on ? "true" : "false");
+        if (state.repeat === "all") {
+          els.repeatBtn.textContent = "Repeat: All";
+          return;
+        }
+        if (state.repeat === "one") {
+          els.repeatBtn.textContent = "Repeat: One";
+          return;
+        }
+        els.repeatBtn.textContent = "Repeat: Off";
+      }
+
+      function updateModeText() {
+        const sourceCount = state.sources.length;
+        const order = state.shuffle ? "random order" : "sequential order";
+        const repeat =
+          state.repeat === "one"
+            ? "repeat current source"
+            : state.repeat === "all"
+              ? "loop all sources"
+              : "no auto loop";
+        els.modeText.textContent = `Mode: ${order}, ${repeat}. Sources available: ${sourceCount}.`;
+      }
+
+      function updateMeta(source) {
+        if (!source) {
+          els.nowPlaying.textContent = "Offline";
+          els.listeners.textContent = "--";
+          els.peak.textContent = "--";
+          els.format.textContent = "Audio stream";
+          els.mount.textContent = fallbackMount;
+          els.updated.textContent = formatClock(new Date());
+          updateStreamLink("");
+          return;
+        }
+        els.nowPlaying.textContent = source.title;
+        els.listeners.textContent = String(source.listeners);
+        els.peak.textContent = String(source.peak);
+        els.format.textContent = source.codec;
+        els.mount.textContent = source.mount;
+        els.updated.textContent = formatClock(new Date());
+        updateStreamLink(source.url);
+      }
+
+      function renderHistory() {
+        els.historyList.innerHTML = "";
+        if (!state.history.length) {
+          const empty = document.createElement("div");
+          empty.className = "list-empty";
+          empty.textContent = "Track history will appear as titles update.";
+          els.historyList.appendChild(empty);
+          return;
+        }
+
+        for (const item of state.history) {
+          const row = document.createElement("div");
+          row.className = "history-item";
+
+          const top = document.createElement("div");
+          top.className = "history-top";
+
+          const mount = document.createElement("span");
+          mount.textContent = item.mount;
+          const at = document.createElement("span");
+          at.textContent = item.at;
+
+          top.appendChild(mount);
+          top.appendChild(at);
+
+          const title = document.createElement("div");
+          title.className = "history-title";
+          title.textContent = item.title;
+
+          row.appendChild(top);
+          row.appendChild(title);
+          els.historyList.appendChild(row);
+        }
+      }
+
+      function pushHistory(source) {
+        if (!source || !source.title) return;
+        const top = state.history[0];
+        if (top && top.title === source.title && top.mount === source.mount) return;
+        state.history.unshift({
+          title: source.title,
+          mount: source.mount,
+          at: formatClock(new Date()),
+        });
+        state.history = state.history.slice(0, 12);
+        renderHistory();
+      }
+
+      function renderSources() {
+        els.sourceList.innerHTML = "";
+        if (!state.sources.length) {
+          const empty = document.createElement("div");
+          empty.className = "list-empty";
+          empty.textContent = "No live source detected. Waiting for a mount...";
+          els.sourceList.appendChild(empty);
+          return;
+        }
+
+        state.sources.forEach((source, index) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = `source-item${index === state.activeIndex ? " active" : ""}`;
+          btn.dataset.index = String(index);
+
+          const main = document.createElement("div");
+          main.className = "source-main";
+          const mount = document.createElement("span");
+          mount.textContent = source.mount;
+          const listeners = document.createElement("span");
+          listeners.textContent = `${source.listeners} listeners`;
+          main.appendChild(mount);
+          main.appendChild(listeners);
+
+          const sub = document.createElement("div");
+          sub.className = "source-sub";
+          const codec = document.createElement("span");
+          codec.textContent = source.codec;
+          const title = document.createElement("span");
+          title.textContent = source.title;
+          sub.appendChild(codec);
+          sub.appendChild(title);
+
+          btn.appendChild(main);
+          btn.appendChild(sub);
+          btn.addEventListener("click", async () => {
+            await setActiveSource(index, { autoplay: true });
+          });
+
+          els.sourceList.appendChild(btn);
+        });
+      }
+
+      async function setActiveSource(index, { autoplay = false } = {}) {
+        if (!state.sources.length) return;
+        const safeIndex = Math.max(0, Math.min(index, state.sources.length - 1));
+        state.activeIndex = safeIndex;
+        const source = getActiveSource();
+        if (!source) return;
+
+        updateMeta(source);
+        renderSources();
+        updateModeText();
+        pushHistory(source);
+
+        const currentSrc = String(els.audio.dataset.streamSrc || "");
+        if (currentSrc !== source.url) {
+          els.audio.src = source.url;
+          els.audio.dataset.streamSrc = source.url;
+          els.audio.load();
+        }
+        if (autoplay) {
+          try {
+            await els.audio.play();
+          } catch (err) {
+            setStatus("Press Play if your browser blocks autoplay.");
+          }
+        }
+      }
+
+      function randomIndexExceptCurrent() {
+        if (state.sources.length <= 1) return state.activeIndex;
+        let next = state.activeIndex;
+        let tries = 0;
+        while (next === state.activeIndex && tries < 16) {
+          next = Math.floor(Math.random() * state.sources.length);
+          tries += 1;
+        }
+        return next;
+      }
+
+      function wrappedIndex(delta) {
+        const size = state.sources.length;
+        if (!size) return -1;
+        const current = state.activeIndex < 0 ? 0 : state.activeIndex;
+        return (current + delta + size) % size;
+      }
+
+      async function goToNext(delta) {
+        if (!state.sources.length) {
+          setStatus("No source available yet.");
+          return;
+        }
+        const next = state.shuffle ? randomIndexExceptCurrent() : wrappedIndex(delta);
+        await setActiveSource(next, { autoplay: true });
+      }
+
+      async function refreshStatus() {
+        try {
+          const res = await fetch(statusUrl, { cache: "no-store" });
+          if (!res.ok) {
+            throw new Error(`Status request failed: ${res.status}`);
+          }
+          const data = await res.json();
+          const stats = data.icestats || {};
+          const incoming = normalizeSources(stats);
+
+          if (!incoming.length) {
+            state.sources = [];
+            state.activeIndex = -1;
+            updateMeta(null);
+            renderSources();
+            updateModeText();
+            setStatus("Stream offline or no mount found.");
+            return;
+          }
+
+          const previous = getActiveSource();
+          const previousKey = previous ? previous.key : "";
+
+          state.sources = incoming;
+
+          let nextIndex = state.sources.findIndex((source) => source.key === previousKey);
+          if (nextIndex < 0) nextIndex = preferredIndex(state.sources);
+
+          const shouldAutoplay = !els.audio.paused && state.activeIndex !== nextIndex;
+          await setActiveSource(nextIndex, { autoplay: shouldAutoplay });
+
+          setStatus("Live and ready to play.");
+        } catch (err) {
+          setStatus("Status unavailable. Retrying...");
+        }
+      }
+
+      async function copyStreamUrl() {
+        const source = getActiveSource();
+        const streamUrl = getStreamUrl(source);
+        try {
+          await navigator.clipboard.writeText(streamUrl);
+          setStatus("Stream URL copied to clipboard.");
+        } catch (err) {
+          const input = document.createElement("input");
+          input.value = streamUrl;
+          document.body.appendChild(input);
+          input.select();
+          document.execCommand("copy");
+          document.body.removeChild(input);
+          setStatus("Stream URL copied.");
+        }
+      }
+
+      els.copyBtn.addEventListener("click", copyStreamUrl);
+
+      els.playBtn.addEventListener("click", async () => {
+        const active = getActiveSource();
+        if (!active) {
+          setStatus("No source available.");
+          return;
+        }
+        if (els.audio.paused) {
+          const streamSrc = String(els.audio.dataset.streamSrc || "");
+          if (streamSrc !== active.url) {
+            els.audio.src = active.url;
+            els.audio.dataset.streamSrc = active.url;
+            els.audio.load();
+          }
+          try {
+            await els.audio.play();
+          } catch (err) {
+            setStatus("Playback blocked. Use the native player control.");
+          }
+        } else {
+          els.audio.pause();
+        }
+        updatePlayButton();
+      });
+
+      els.prevBtn.addEventListener("click", () => goToNext(-1));
+      els.nextBtn.addEventListener("click", () => goToNext(1));
+
+      els.shuffleBtn.addEventListener("click", () => {
+        state.shuffle = !state.shuffle;
+        updateShuffleButton();
+        updateModeText();
+      });
+
+      els.repeatBtn.addEventListener("click", () => {
+        const idx = repeatModes.indexOf(state.repeat);
+        state.repeat = repeatModes[(idx + 1) % repeatModes.length];
+        updateRepeatButton();
+        updateModeText();
+      });
+
+      els.volume.addEventListener("input", () => {
+        const volume = Number(els.volume.value);
+        els.audio.volume = volume;
+        if (volume > 0 && els.audio.muted) {
+          els.audio.muted = false;
+        }
+        updateMuteButton();
+      });
+
+      els.muteBtn.addEventListener("click", () => {
+        els.audio.muted = !els.audio.muted;
+        updateMuteButton();
+      });
+
+      els.audio.addEventListener("playing", () => {
+        updatePlayButton();
+        setStatus("Playing live audio.");
+      });
+
+      els.audio.addEventListener("pause", () => {
+        updatePlayButton();
+        if (!els.audio.ended) {
+          setStatus("Playback paused.");
+        }
+      });
+
+      els.audio.addEventListener("waiting", () => {
+        setStatus("Buffering stream...");
+      });
+
+      els.audio.addEventListener("error", () => {
+        setStatus("Audio error. Try another source.");
+      });
+
+      els.audio.addEventListener("ended", async () => {
+        if (state.repeat === "one") {
+          els.audio.currentTime = 0;
+          try {
+            await els.audio.play();
+          } catch (err) {}
+          return;
+        }
+        if (state.repeat === "all" || state.shuffle) {
+          const next = state.shuffle ? randomIndexExceptCurrent() : wrappedIndex(1);
+          if (next >= 0) {
+            await setActiveSource(next, { autoplay: true });
+          }
+        }
+      });
+
+      els.audio.volume = Number(els.volume.value);
+      updatePlayButton();
+      updateShuffleButton();
+      updateRepeatButton();
+      updateMuteButton();
+      updateModeText();
+      updateStreamLink("");
+      renderSources();
+      renderHistory();
+
+      refreshStatus();
+      setInterval(refreshStatus, 8000);
+    </script>
+  </body>
+</html>
