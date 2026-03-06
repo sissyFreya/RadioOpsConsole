@@ -4,16 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>RadioOps Stream</title>
-    <meta
-      name="description"
-      content="RadioOps live stream player with source switching and listening controls."
-    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <style>
       :root {
         --bg-0: #0b1117;
@@ -24,16 +17,15 @@
         --danger: #ff6b6b;
         --text: #eef2f6;
         --muted: #9aa7b6;
-        --card: rgba(14, 20, 28, 0.72);
+        --card: rgba(14, 20, 28, 0.82);
         --stroke: rgba(255, 255, 255, 0.08);
         --stroke-strong: rgba(255, 255, 255, 0.16);
         --shadow: rgba(0, 0, 0, 0.45);
         --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+        --sidebar-w: 340px;
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -47,1011 +39,755 @@
       }
 
       .orb {
-        position: fixed;
-        width: 380px;
-        height: 380px;
-        border-radius: 50%;
-        filter: blur(80px);
-        opacity: 0.35;
-        z-index: 0;
+        position: fixed; width: 380px; height: 380px; border-radius: 50%;
+        filter: blur(80px); opacity: 0.3; z-index: 0; pointer-events: none;
         animation: float 12s ease-in-out infinite;
       }
+      .orb.one { background: #2d9cdb; top: -120px; right: -100px; }
+      .orb.two { background: #20e3b2; bottom: -140px; left: -120px; animation-delay: -4s; }
 
-      .orb.one {
-        background: #2d9cdb;
-        top: -120px;
-        right: -100px;
-      }
-
-      .orb.two {
-        background: #20e3b2;
-        bottom: -140px;
-        left: -120px;
-        animation-delay: -4s;
-      }
-
-      .wrap {
-        position: relative;
-        z-index: 1;
-        max-width: 1080px;
-        margin: 0 auto;
-        padding: 48px 24px 64px;
-      }
-
-      .hero {
+      /* ── Page layout ─────────────────────── */
+      .page {
+        position: relative; z-index: 1;
+        max-width: 1320px; margin: 0 auto;
+        padding: 40px 24px 64px;
         display: grid;
-        gap: 16px;
-        margin-bottom: 32px;
-        animation: reveal 0.7s ease both;
+        grid-template-columns: 1fr var(--sidebar-w);
+        grid-template-rows: auto 1fr;
+        column-gap: 24px;
+      }
+      .page-hero { grid-column: 1 / -1; margin-bottom: 28px; animation: reveal 0.6s ease both; }
+      .main-col  { min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+      .sidebar   {
+        display: flex; flex-direction: column; gap: 16px;
+        position: sticky; top: 24px;
+        max-height: calc(100vh - 48px); overflow: hidden;
       }
 
+      @media (max-width: 980px) {
+        .page { grid-template-columns: 1fr; }
+        .sidebar { position: static; max-height: none; }
+        .page-hero { grid-column: 1; }
+      }
+
+      /* ── Hero ─────────────────────────────── */
       .live-tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 12px;
-        border-radius: 999px;
-        background: rgba(32, 227, 178, 0.18);
-        color: var(--accent);
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        font-size: 12px;
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 5px 12px; border-radius: 999px;
+        background: rgba(32,227,178,0.14); color: var(--accent);
+        font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; font-size: 12px;
       }
-
       .live-dot {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--accent);
-        box-shadow: 0 0 12px rgba(32, 227, 178, 0.8);
+        width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
+        box-shadow: 0 0 12px rgba(32,227,178,0.8); animation: pulse 2s ease-in-out infinite;
       }
+      h1 { margin: 8px 0 4px; font-size: clamp(26px, 4vw, 44px); line-height: 1.05; letter-spacing: -0.02em; }
+      .subtitle { margin: 0 0 16px; font-size: 16px; color: var(--muted); }
+      .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; }
 
-      h1 {
-        margin: 0;
-        font-size: clamp(32px, 5vw, 54px);
-        line-height: 1.05;
-        letter-spacing: -0.02em;
+      /* ── Buttons ─────────────────────────── */
+      .button, .ghost {
+        border: 1px solid transparent; border-radius: 999px;
+        padding: 10px 20px; font-weight: 600; font-size: 14px;
+        cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+        text-decoration: none; display: inline-flex; align-items: center; gap: 6px;
+        font-family: inherit;
       }
-
-      .subtitle {
-        margin: 0;
-        font-size: 18px;
-        color: var(--muted);
-        max-width: 720px;
-      }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-
-      .button,
-      .ghost {
-        border: 1px solid transparent;
-        border-radius: 999px;
-        padding: 12px 20px;
-        font-weight: 600;
-        font-size: 15px;
-        cursor: pointer;
-        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
-        text-decoration: none;
-      }
-
-      .button {
-        background: linear-gradient(120deg, var(--accent), var(--accent-2));
-        color: #081117;
-        box-shadow: 0 12px 28px rgba(32, 227, 178, 0.3);
-      }
-
-      .button:hover,
-      .ghost:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 14px 30px rgba(0, 0, 0, 0.3);
-      }
-
-      .ghost {
-        background: transparent;
-        color: var(--text);
-        border-color: var(--stroke);
-      }
+      .button { background: linear-gradient(120deg, var(--accent), var(--accent-2)); color: #081117; box-shadow: 0 10px 24px rgba(32,227,178,0.28); }
+      .button:hover, .ghost:hover { transform: translateY(-2px); }
+      .ghost { background: transparent; color: var(--text); border-color: var(--stroke); }
 
       .chip {
-        background: rgba(255, 255, 255, 0.02);
-        color: var(--text);
-        border: 1px solid var(--stroke);
-        border-radius: 999px;
-        padding: 8px 14px;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-        cursor: pointer;
-        transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+        background: rgba(255,255,255,0.03); color: var(--text);
+        border: 1px solid var(--stroke); border-radius: 999px;
+        padding: 7px 14px; font-size: 13px; font-weight: 600; font-family: inherit;
+        cursor: pointer; transition: all 0.2s; white-space: nowrap;
       }
+      .chip:hover { border-color: var(--stroke-strong); background: rgba(255,255,255,0.07); }
+      .chip.active { background: rgba(32,227,178,0.14); border-color: rgba(32,227,178,0.6); color: var(--accent); }
+      .chip.warn { border-color: rgba(255,107,107,0.4); }
+      .chip.warn.active { background: rgba(255,107,107,0.12); border-color: rgba(255,107,107,0.7); color: #ffc2c2; }
+      .chip:disabled { opacity: 0.5; cursor: not-allowed; }
 
-      .chip:hover {
-        transform: translateY(-1px);
-        border-color: var(--stroke-strong);
+      /* ── Cards ─────────────────────────────── */
+      .card {
+        background: var(--card); border: 1px solid var(--stroke);
+        border-radius: 22px; padding: 22px;
+        box-shadow: 0 18px 48px var(--shadow); backdrop-filter: blur(12px);
+        animation: reveal 0.6s ease both;
       }
+      .card-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0 0 12px; }
 
-      .chip.active {
-        background: rgba(32, 227, 178, 0.17);
-        border-color: rgba(32, 227, 178, 0.65);
-        color: var(--accent);
-      }
-
-      .chip.warn {
-        border-color: rgba(255, 107, 107, 0.45);
-      }
-
-      .chip.warn.active {
-        background: rgba(255, 107, 107, 0.12);
-        border-color: rgba(255, 107, 107, 0.7);
-        color: #ffc2c2;
-      }
-
-      .player-card {
-        background: var(--card);
-        border: 1px solid var(--stroke);
-        border-radius: 24px;
-        padding: 24px;
-        display: grid;
-        gap: 18px;
-        box-shadow: 0 20px 60px var(--shadow);
-        backdrop-filter: blur(12px);
-        animation: reveal 0.7s ease both;
-        animation-delay: 0.1s;
-      }
-
-      .player-meta {
-        display: grid;
-        gap: 16px;
-      }
-
-      .label {
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: var(--muted);
-      }
-
-      .value {
-        font-size: 20px;
-        font-weight: 600;
-      }
-
-      .meta-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 24px;
-      }
+      /* ── Player ─────────────────────────────── */
+      .now-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); }
+      .now-title { font-size: 22px; font-weight: 700; margin: 4px 0 0; line-height: 1.2; }
+      .meta-row { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 14px; }
+      .meta-item .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+      .meta-item .value { font-size: 17px; font-weight: 600; margin-top: 2px; }
 
       .control-board {
-        display: grid;
-        gap: 12px;
-        border: 1px solid var(--stroke);
-        border-radius: 16px;
-        background: rgba(6, 10, 14, 0.45);
-        padding: 14px;
+        border: 1px solid var(--stroke); border-radius: 14px;
+        background: rgba(6,10,14,0.5); padding: 14px;
+        display: grid; gap: 12px; margin-top: 16px;
       }
+      .transport-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+      .divider { width: 1px; height: 20px; background: var(--stroke); margin: 0 2px; flex-shrink: 0; }
+      .volume-row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; }
+      .volume-wrap { display: flex; align-items: center; gap: 10px; }
+      .volume-wrap label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; white-space: nowrap; }
+      #volume { flex: 1; accent-color: var(--accent); }
+      .mode-text { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+      .status-text { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; }
 
-      .transport-row {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 8px;
-      }
-
-      .volume-row {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .volume-wrap {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .volume-wrap label {
-        font-size: 12px;
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-      }
-
-      #volume {
-        width: 100%;
-        accent-color: var(--accent);
-      }
-
-      .mode-text {
-        font-size: 12px;
-        color: var(--muted);
-        font-family: var(--mono);
-      }
-
-      audio {
-        width: 100%;
-        accent-color: var(--accent);
-        border-radius: 12px;
-      }
-
-      .status {
-        font-family: var(--mono);
-        font-size: 13px;
-        color: var(--muted);
-      }
-
-      .list-grid {
-        margin-top: 24px;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 16px;
-        animation: reveal 0.7s ease both;
-        animation-delay: 0.15s;
-      }
-
-      .list-card {
-        background: rgba(11, 17, 23, 0.72);
-        border: 1px solid var(--stroke);
-        border-radius: 18px;
-        padding: 14px;
-        display: grid;
-        gap: 10px;
-      }
-
-      .list-title {
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.12em;
-        color: var(--muted);
-      }
-
-      .list-body {
-        display: grid;
-        gap: 8px;
-        max-height: 220px;
-        overflow: auto;
-        padding-right: 4px;
-      }
-
-      .list-empty {
-        border: 1px dashed var(--stroke);
-        border-radius: 12px;
-        padding: 12px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
+      /* ── Sources / History ──────────────────── */
+      .list-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+      @media (max-width: 600px) { .list-grid { grid-template-columns: 1fr; } }
+      .list-body { display: grid; gap: 8px; max-height: 180px; overflow-y: auto; padding-right: 2px; }
+      .list-empty { border: 1px dashed var(--stroke); border-radius: 10px; padding: 12px; color: var(--muted); font-size: 13px; }
       .source-item {
-        width: 100%;
-        border: 1px solid var(--stroke);
-        border-radius: 12px;
-        background: rgba(255, 255, 255, 0.015);
-        color: var(--text);
-        text-align: left;
-        padding: 10px 12px;
-        cursor: pointer;
-        transition: border-color 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+        width: 100%; border: 1px solid var(--stroke); border-radius: 10px;
+        background: rgba(255,255,255,0.015); color: var(--text);
+        text-align: left; padding: 10px 12px; cursor: pointer; transition: all 0.2s; font-family: inherit;
+      }
+      .source-item:hover { border-color: var(--stroke-strong); background: rgba(255,255,255,0.04); }
+      .source-item.active { border-color: rgba(32,227,178,0.7); background: rgba(32,227,178,0.08); }
+      .source-main { display: flex; justify-content: space-between; font-size: 13px; font-weight: 600; }
+      .source-sub { display: flex; gap: 10px; font-size: 11px; color: var(--muted); margin-top: 4px; overflow: hidden; }
+      .source-sub span { white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+      .history-item { border: 1px solid var(--stroke); border-radius: 10px; padding: 8px 10px; background: rgba(255,255,255,0.015); }
+      .history-top { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+      .history-title { font-size: 13px; margin-top: 4px; line-height: 1.3; }
+
+      /* ── Info bar ────────────────────────────── */
+      .info-bar { display: flex; flex-wrap: wrap; gap: 12px; }
+      .info-pill {
+        background: rgba(255,255,255,0.04); border: 1px solid var(--stroke);
+        border-radius: 12px; padding: 12px 16px; flex: 1; min-width: 130px;
+      }
+      .info-pill .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
+      .info-pill .code { font-family: var(--mono); font-size: 12px; color: var(--accent-2); word-break: break-all; margin-top: 4px; }
+      .info-pill .value { font-size: 16px; font-weight: 600; margin-top: 4px; }
+
+      /* ── Sidebar cards ───────────────────────── */
+      .sidebar-card {
+        background: var(--card); border: 1px solid var(--stroke);
+        border-radius: 20px; backdrop-filter: blur(12px);
+        display: flex; flex-direction: column; overflow: hidden;
+        animation: reveal 0.6s ease both; animation-delay: 0.08s;
+      }
+      .sidebar-head {
+        padding: 14px 16px 12px; border-bottom: 1px solid var(--stroke);
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      }
+      .sidebar-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0; }
+      .track-badge {
+        font-size: 11px; color: var(--muted);
+        background: rgba(255,255,255,0.06); border-radius: 999px; padding: 2px 8px;
       }
 
-      .source-item:hover {
-        transform: translateY(-1px);
-        border-color: var(--stroke-strong);
+      .track-search {
+        margin: 10px 12px;
+        background: rgba(255,255,255,0.05); border: 1px solid var(--stroke);
+        border-radius: 10px; padding: 8px 12px; color: var(--text);
+        font-size: 13px; font-family: inherit; width: calc(100% - 24px);
+        outline: none; transition: border-color 0.2s;
+      }
+      .track-search:focus { border-color: rgba(32,227,178,0.5); }
+      .track-search::placeholder { color: var(--muted); }
+
+      .track-list {
+        flex: 1; overflow-y: auto; padding: 4px 10px 12px;
+        max-height: 340px;
+      }
+      .track-list::-webkit-scrollbar { width: 4px; }
+      .track-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+      .track-item {
+        display: flex; align-items: center; gap: 10px;
+        padding: 8px; border-radius: 10px; cursor: default;
+        transition: background 0.15s; border: 1px solid transparent;
+      }
+      .track-item:hover { background: rgba(255,255,255,0.05); border-color: var(--stroke); }
+      .track-item.queued { background: rgba(32,227,178,0.07); border-color: rgba(32,227,178,0.28); }
+      .track-icon { font-size: 14px; flex-shrink: 0; opacity: 0.65; }
+      .track-info { flex: 1; min-width: 0; }
+      .track-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .track-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 1px; }
+      .track-btn {
+        flex-shrink: 0; opacity: 0;
+        background: rgba(32,227,178,0.12); border: 1px solid rgba(32,227,178,0.3);
+        color: var(--accent); border-radius: 8px; padding: 4px 8px;
+        font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.18s;
+        font-family: inherit; white-space: nowrap;
+      }
+      .track-item:hover .track-btn { opacity: 1; }
+      .track-btn:hover { background: rgba(32,227,178,0.24); }
+      .track-empty { padding: 24px 8px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.65; }
+
+      /* ── Queue ────────────────────────────────── */
+      .queue-card {
+        background: var(--card); border: 1px solid var(--stroke);
+        border-radius: 20px; backdrop-filter: blur(12px); overflow: hidden;
+        animation: reveal 0.6s ease both; animation-delay: 0.14s;
+      }
+      .queue-head {
+        padding: 13px 16px 11px; border-bottom: 1px solid var(--stroke);
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .queue-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0; }
+      .queue-clear-btn {
+        font-size: 11px; color: var(--muted); background: none; border: none;
+        cursor: pointer; padding: 2px 6px; border-radius: 6px;
+        transition: color 0.18s; font-family: inherit; display: none;
+      }
+      .queue-clear-btn:hover { color: var(--danger); }
+      .queue-body { padding: 8px 12px 12px; display: grid; gap: 6px; max-height: 200px; overflow-y: auto; }
+      .queue-item {
+        display: flex; align-items: center; gap: 8px;
+        padding: 6px 8px; border-radius: 8px;
+        background: rgba(255,255,255,0.03); border: 1px solid var(--stroke); font-size: 12px;
+      }
+      .queue-pos { font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 14px; }
+      .queue-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .queue-rm {
+        font-size: 11px; color: var(--muted); background: none; border: none;
+        cursor: pointer; padding: 0 2px; transition: color 0.15s; font-family: inherit; line-height: 1;
+      }
+      .queue-rm:hover { color: var(--danger); }
+      .queue-empty { padding: 14px 6px; color: var(--muted); font-size: 12px; text-align: center; }
+
+      /* ── Animations ───────────────────────────── */
+      @keyframes reveal { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+      @keyframes float  { 0%,100%{transform:translateY(0);} 50%{transform:translateY(18px);} }
+      @keyframes pulse  { 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+      @keyframes spin   { to{transform:rotate(360deg);} }
+      .spinner {
+        display: inline-block; width: 12px; height: 12px;
+        border: 2px solid rgba(32,227,178,0.25); border-top-color: var(--accent);
+        border-radius: 50%; animation: spin 0.75s linear infinite; vertical-align: middle;
       }
 
-      .source-item.active {
-        border-color: rgba(32, 227, 178, 0.7);
-        background: rgba(32, 227, 178, 0.1);
-      }
-
-      .source-main {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
-        font-size: 13px;
-        font-weight: 600;
-      }
-
-      .source-sub {
-        display: flex;
-        gap: 10px;
-        font-size: 11px;
-        color: var(--muted);
-        margin-top: 4px;
-        overflow: hidden;
-      }
-
-      .source-sub span {
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        overflow: hidden;
-      }
-
-      .history-item {
-        border: 1px solid var(--stroke);
-        border-radius: 12px;
-        padding: 8px 10px;
-        display: grid;
-        gap: 4px;
-        background: rgba(255, 255, 255, 0.015);
-      }
-
-      .history-top {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        font-size: 11px;
-        color: var(--muted);
-        font-family: var(--mono);
-      }
-
-      .history-title {
-        font-size: 13px;
-        line-height: 1.3;
-      }
-
-      .info-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 16px;
-        margin-top: 24px;
-        animation: reveal 0.7s ease both;
-        animation-delay: 0.2s;
-      }
-
-      .info-card {
-        background: rgba(11, 17, 23, 0.7);
-        border: 1px solid var(--stroke);
-        border-radius: 18px;
-        padding: 16px;
-        display: grid;
-        gap: 8px;
-      }
-
-      .code {
-        font-family: var(--mono);
-        font-size: 13px;
-        color: var(--accent-2);
-        word-break: break-all;
-      }
-
-      .hint {
-        margin-top: 24px;
-        color: var(--muted);
-        font-size: 14px;
-        line-height: 1.6;
-      }
-
-      @keyframes reveal {
-        from {
-          opacity: 0;
-          transform: translateY(12px);
-        }
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @keyframes float {
-        0%,
-        100% {
-          transform: translateY(0);
-        }
-        50% {
-          transform: translateY(18px);
-        }
-      }
-
-      @media (max-width: 720px) {
-        .wrap {
-          padding: 32px 18px 48px;
-        }
-
-        .player-card {
-          padding: 18px;
-        }
-
-        .meta-row {
-          gap: 16px;
-        }
-
-        .volume-row {
-          grid-template-columns: 1fr;
-          gap: 6px;
-        }
-      }
-
-      @media (prefers-reduced-motion: reduce) {
-        * {
-          animation: none !important;
-          transition: none !important;
-        }
-      }
+      @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
     </style>
   </head>
   <body>
     <div class="orb one"></div>
     <div class="orb two"></div>
 
-    <main class="wrap">
-      <header class="hero">
+    <div class="page">
+
+      <!-- ── Hero ──────────────────────────────────────────── -->
+      <header class="page-hero">
         <div class="live-tag"><span class="live-dot"></span> Live Stream</div>
         <h1>RadioOps Stream</h1>
-        <p class="subtitle">
-          Control your listening session: switch live sources, use random mode,
-          and track what is currently on air.
-        </p>
-        <div class="actions">
+        <p class="subtitle">Live webradio — queue tracks, skip, shuffle and take full control of what plays next.</p>
+        <div class="hero-actions">
           <button class="button" id="copy-btn" type="button">Copy Stream URL</button>
-          <a class="ghost" id="open-link" href="/stream">Open Audio Only</a>
+          <a class="ghost" id="open-link" href="/stream">Audio Only</a>
         </div>
       </header>
 
-      <section class="player-card">
-        <div class="player-meta">
-          <div>
-            <div class="label">Now Playing</div>
-            <div class="value" id="now-playing">Loading...</div>
-          </div>
+      <!-- ── Main column ────────────────────────────────────── -->
+      <div class="main-col">
+
+        <!-- Player -->
+        <div class="card">
+          <div class="now-label">Now Playing</div>
+          <div class="now-title" id="now-playing">Loading...</div>
           <div class="meta-row">
+            <div class="meta-item"><div class="label">Listeners</div><div class="value" id="listeners">--</div></div>
+            <div class="meta-item"><div class="label">Mount</div><div class="value" id="mount-name">/stream</div></div>
+            <div class="meta-item"><div class="label">Updated</div><div class="value" id="updated-at">--:--</div></div>
+          </div>
+
+          <div class="control-board">
+            <div class="transport-row">
+              <button class="chip" id="prev-btn" type="button">&#9664;&#9664; Prev</button>
+              <button class="chip" id="play-btn" type="button">Play</button>
+              <button class="chip" id="next-btn" type="button">Next &#9654;&#9654;</button>
+              <span class="divider"></span>
+              <button class="chip" id="shuffle-btn" type="button" aria-pressed="false">&#128256; Shuffle</button>
+              <button class="chip warn" id="repeat-btn" type="button" aria-pressed="false">Repeat: Off</button>
+            </div>
+            <div class="volume-row">
+              <div class="volume-wrap">
+                <label for="volume">Volume</label>
+                <input id="volume" type="range" min="0" max="1" step="0.01" value="1" />
+              </div>
+              <button class="chip" id="mute-btn" type="button" aria-pressed="false">Mute</button>
+            </div>
+            <div class="mode-text" id="mode-text">Mode: sequential order, no auto loop.</div>
+          </div>
+
+          <audio id="audio" preload="none" style="display:none">
+            <source src="/stream" type="audio/mpeg" />
+            <source src="/stream" type="audio/ogg" />
+          </audio>
+          <div class="status-text" id="status">Checking stream status...</div>
+        </div>
+
+        <!-- Sources + history -->
+        <div class="card" style="animation-delay:0.05s">
+          <div class="list-grid">
             <div>
-              <div class="label">Listeners</div>
-              <div class="value" id="listeners">--</div>
+              <div class="card-title">Available Sources</div>
+              <div class="list-body" id="source-list"></div>
             </div>
             <div>
-              <div class="label">Mount</div>
-              <div class="value" id="mount-name">/stream</div>
-            </div>
-            <div>
-              <div class="label">Updated</div>
-              <div class="value" id="updated-at">--:--</div>
+              <div class="card-title">Recently Heard</div>
+              <div class="list-body" id="history-list"></div>
             </div>
           </div>
         </div>
 
-        <div class="control-board">
-          <div class="transport-row">
-            <button class="chip" id="prev-btn" type="button">Prev</button>
-            <button class="chip" id="play-btn" type="button">Play</button>
-            <button class="chip" id="next-btn" type="button">Next</button>
-            <button class="chip" id="shuffle-btn" type="button" aria-pressed="false">Shuffle</button>
-            <button class="chip warn" id="repeat-btn" type="button" aria-pressed="false">Repeat: Off</button>
-          </div>
-          <div class="volume-row">
-            <div class="volume-wrap">
-              <label for="volume">Volume</label>
-              <input id="volume" type="range" min="0" max="1" step="0.01" value="1" />
-            </div>
-            <button class="chip" id="mute-btn" type="button" aria-pressed="false">Mute</button>
-          </div>
-          <div class="mode-text" id="mode-text">Mode: sequential source switching.</div>
+        <!-- Info -->
+        <div class="info-bar">
+          <div class="info-pill"><div class="label">Stream URL</div><div class="code" id="stream-url"></div></div>
+          <div class="info-pill"><div class="label">Format</div><div class="value" id="format">Audio stream</div></div>
+          <div class="info-pill"><div class="label">Peak Listeners</div><div class="value" id="peak">--</div></div>
         </div>
-
-        <audio id="audio" controls preload="none">
-          <source src="/stream" type="audio/mpeg" />
-          <source src="/stream" type="audio/ogg" />
-        </audio>
-        <div class="status" id="status">Checking stream status...</div>
-      </section>
-
-      <section class="list-grid">
-        <article class="list-card">
-          <div class="list-title">Available Sources</div>
-          <div class="list-body" id="source-list"></div>
-        </article>
-        <article class="list-card">
-          <div class="list-title">Recently Heard</div>
-          <div class="list-body" id="history-list"></div>
-        </article>
-      </section>
-
-      <section class="info-grid">
-        <div class="info-card">
-          <div class="label">Stream URL</div>
-          <div class="code" id="stream-url"></div>
-        </div>
-        <div class="info-card">
-          <div class="label">Format</div>
-          <div class="value" id="format">Audio stream</div>
-        </div>
-        <div class="info-card">
-          <div class="label">Peak Listeners</div>
-          <div class="value" id="peak">--</div>
-        </div>
-      </section>
-
-      <div class="hint">
-        Tip: this is live radio, so upcoming tracks may be unknown. Use source
-        switching, random mode and history to keep control of your listening.
       </div>
-    </main>
+
+      <!-- ── Sidebar ─────────────────────────────────────────── -->
+      <aside class="sidebar">
+
+        <!-- Track Library -->
+        <div class="sidebar-card">
+          <div class="sidebar-head">
+            <span class="sidebar-title">&#127925; Track Library</span>
+            <span class="track-badge" id="track-count"><span class="spinner"></span></span>
+          </div>
+          <input class="track-search" id="track-search" type="search" placeholder="Search tracks..." autocomplete="off" />
+          <div class="track-list" id="track-list">
+            <div class="track-empty"><span class="spinner"></span>&nbsp; Loading library...</div>
+          </div>
+        </div>
+
+        <!-- Queue -->
+        <div class="queue-card">
+          <div class="queue-head">
+            <span class="queue-title">&#9654; Up Next</span>
+            <button class="queue-clear-btn" id="queue-clear-btn" type="button">Clear all</button>
+          </div>
+          <div class="queue-body" id="queue-list">
+            <div class="queue-empty">Queue is empty. Click <strong>Play</strong> on a track to add it.</div>
+          </div>
+        </div>
+
+      </aside>
+    </div>
 
     <script>
-      const statusUrl = "/status-json.xsl";
-      const fallbackMount = "/stream";
-      const repeatModes = ["off", "all", "one"];
+      /* ── Config ───────────────────────────────────────── */
+      const STATUS_URL   = "/status-json.xsl";
+      const FALLBACK_MNT = "/stream";
+      const REPEAT_MODES = ["off", "all", "one"];
+      const RADIO_ID     = new URLSearchParams(window.location.search).get("radio_id") || "1";
 
-      const els = {
-        nowPlaying: document.getElementById("now-playing"),
-        listeners: document.getElementById("listeners"),
-        peak: document.getElementById("peak"),
-        mount: document.getElementById("mount-name"),
-        format: document.getElementById("format"),
-        updated: document.getElementById("updated-at"),
-        status: document.getElementById("status"),
-        streamUrl: document.getElementById("stream-url"),
-        openLink: document.getElementById("open-link"),
-        copyBtn: document.getElementById("copy-btn"),
-        sourceList: document.getElementById("source-list"),
+      const el = {
+        nowPlaying:  document.getElementById("now-playing"),
+        listeners:   document.getElementById("listeners"),
+        peak:        document.getElementById("peak"),
+        mount:       document.getElementById("mount-name"),
+        format:      document.getElementById("format"),
+        updated:     document.getElementById("updated-at"),
+        status:      document.getElementById("status"),
+        streamUrl:   document.getElementById("stream-url"),
+        openLink:    document.getElementById("open-link"),
+        copyBtn:     document.getElementById("copy-btn"),
+        sourceList:  document.getElementById("source-list"),
         historyList: document.getElementById("history-list"),
-        audio: document.getElementById("audio"),
-        prevBtn: document.getElementById("prev-btn"),
-        playBtn: document.getElementById("play-btn"),
-        nextBtn: document.getElementById("next-btn"),
-        shuffleBtn: document.getElementById("shuffle-btn"),
-        repeatBtn: document.getElementById("repeat-btn"),
-        volume: document.getElementById("volume"),
-        muteBtn: document.getElementById("mute-btn"),
-        modeText: document.getElementById("mode-text"),
+        audio:       document.getElementById("audio"),
+        prevBtn:     document.getElementById("prev-btn"),
+        playBtn:     document.getElementById("play-btn"),
+        nextBtn:     document.getElementById("next-btn"),
+        shuffleBtn:  document.getElementById("shuffle-btn"),
+        repeatBtn:   document.getElementById("repeat-btn"),
+        volume:      document.getElementById("volume"),
+        muteBtn:     document.getElementById("mute-btn"),
+        modeText:    document.getElementById("mode-text"),
+        trackList:   document.getElementById("track-list"),
+        trackSearch: document.getElementById("track-search"),
+        trackCount:  document.getElementById("track-count"),
+        queueList:   document.getElementById("queue-list"),
+        queueClear:  document.getElementById("queue-clear-btn"),
       };
 
-      const state = {
-        sources: [],
-        activeIndex: -1,
-        history: [],
-        shuffle: false,
-        repeat: "off",
-      };
+      /* ── Stream state ─────────────────────────────────── */
+      const ss = { sources: [], activeIndex: -1, history: [], shuffle: false, repeat: "off" };
 
-      function setStatus(text) {
-        els.status.textContent = text;
+      /* ── Library state ────────────────────────────────── */
+      let allTracks   = [];
+      let trackFilter = "";
+      let queue       = [];   // { filename, path, display_name }
+      let reqHistory  = [];   // recently queued tracks (for Prev)
+      let apiOk       = false;
+
+      /* ── Helpers ──────────────────────────────────────── */
+      const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      const clock = d => `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+      const fmtSize = b => b >= 1048576 ? `${(b/1048576).toFixed(1)} MB` : `${(b/1024).toFixed(0)} KB`;
+      const setStatus = t => { el.status.textContent = t; };
+
+      /* ── API ──────────────────────────────────────────── */
+      async function apiPost(path) {
+        const r = await fetch(path, { method: "POST" });
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
+      }
+      async function apiGet(path) {
+        const r = await fetch(path);
+        if (!r.ok) throw new Error(r.status);
+        return r.json();
       }
 
-      function formatClock(date) {
-        const hh = String(date.getHours()).padStart(2, "0");
-        const mm = String(date.getMinutes()).padStart(2, "0");
-        return `${hh}:${mm}`;
-      }
-
-      function getActiveSource() {
-        return state.sources[state.activeIndex] || null;
-      }
-
-      function getStreamUrl(source) {
-        return source?.url || `${window.location.origin}${fallbackMount}`;
-      }
+      /* ── Stream source helpers ────────────────────────── */
+      function getActive() { return ss.sources[ss.activeIndex] || null; }
+      function streamUrl(src) { return src?.url || `${location.origin}${FALLBACK_MNT}`; }
 
       function updateStreamLink(url) {
-        const value = url || `${window.location.origin}${fallbackMount}`;
-        els.streamUrl.textContent = value;
-        els.openLink.href = value;
+        const v = url || `${location.origin}${FALLBACK_MNT}`;
+        el.streamUrl.textContent = v; el.openLink.href = v;
       }
-
-      function parseMount(rawUrl) {
-        if (!rawUrl) return "";
-        try {
-          const parsed = new URL(rawUrl, window.location.origin);
-          return parsed.pathname || "";
-        } catch (err) {
-          return "";
-        }
+      function parseMount(raw) {
+        if (!raw) return "";
+        try { return new URL(raw, location.origin).pathname || ""; } catch { return ""; }
       }
-
       function normalizeSources(stats) {
-        if (!stats || !stats.source) {
-          return [];
-        }
-
+        if (!stats?.source) return [];
         const arr = Array.isArray(stats.source) ? stats.source : [stats.source];
-        return arr.map((source, idx) => {
-          const rawUrl = String(source.listenurl || "").trim();
-          const guessedMount =
-            source.mount || parseMount(rawUrl) || (idx === 0 ? fallbackMount : `/stream-${idx + 1}`);
-          const mount = guessedMount.startsWith("/") ? guessedMount : `/${guessedMount}`;
-
-          let url = `${window.location.origin}${mount}`;
-          if (rawUrl) {
-            try {
-              url = new URL(rawUrl, window.location.origin).toString();
-            } catch (err) {}
-          }
-
-          const title =
-            source.title ||
-            source.song ||
-            source.server_name ||
-            source.server_description ||
-            "Live stream";
-
+        return arr.map((s, i) => {
+          const rawUrl = String(s.listenurl || "").trim();
+          const guessed = s.mount || parseMount(rawUrl) || (i === 0 ? FALLBACK_MNT : `/stream-${i+1}`);
+          const mount = guessed.startsWith("/") ? guessed : `/${guessed}`;
+          let url = `${location.origin}${mount}`;
+          if (rawUrl) { try { url = new URL(rawUrl, location.origin).toString(); } catch {} }
+          const title = s.title || s.song || s.server_name || s.server_description || "Live stream";
           return {
-            key: `${mount}::${url}`,
-            mount,
-            url,
-            title: String(title),
-            listeners: source.listeners ?? stats.listeners ?? "--",
-            peak: source.listener_peak ?? stats.listener_peak ?? "--",
-            codec: source.server_type || source.codec || "Audio stream",
+            key: `${mount}::${url}`, mount, url, title: String(title),
+            listeners: s.listeners ?? stats.listeners ?? "--",
+            peak: s.listener_peak ?? stats.listener_peak ?? "--",
+            codec: s.server_type || s.codec || "Audio stream",
           };
         });
       }
-
-      function preferredIndex(sources) {
-        const idx = sources.findIndex((source) => source.mount === fallbackMount);
-        return idx >= 0 ? idx : 0;
+      function preferredIndex(srcs) {
+        const i = srcs.findIndex(s => s.mount === FALLBACK_MNT); return i >= 0 ? i : 0;
       }
 
-      function updatePlayButton() {
-        els.playBtn.textContent = els.audio.paused ? "Play" : "Pause";
+      /* ── UI update helpers ────────────────────────────── */
+      function updatePlayBtn()    { el.playBtn.textContent = el.audio.paused ? "Play" : "Pause"; }
+      function updateMuteBtn()    {
+        const m = el.audio.muted || Number(el.volume.value) <= 0;
+        el.muteBtn.classList.toggle("active", m); el.muteBtn.setAttribute("aria-pressed", String(m));
+        el.muteBtn.textContent = m ? "Unmute" : "Mute";
       }
-
-      function updateMuteButton() {
-        const muted = els.audio.muted || Number(els.volume.value) <= 0;
-        els.muteBtn.classList.toggle("active", muted);
-        els.muteBtn.setAttribute("aria-pressed", muted ? "true" : "false");
-        els.muteBtn.textContent = muted ? "Unmute" : "Mute";
+      function updateShuffleBtn() {
+        el.shuffleBtn.classList.toggle("active", ss.shuffle);
+        el.shuffleBtn.setAttribute("aria-pressed", String(ss.shuffle));
       }
-
-      function updateShuffleButton() {
-        els.shuffleBtn.classList.toggle("active", state.shuffle);
-        els.shuffleBtn.setAttribute("aria-pressed", state.shuffle ? "true" : "false");
+      function updateRepeatBtn()  {
+        const on = ss.repeat !== "off";
+        el.repeatBtn.classList.toggle("active", on); el.repeatBtn.setAttribute("aria-pressed", String(on));
+        el.repeatBtn.textContent = { off:"Repeat: Off", all:"Repeat: All", one:"Repeat: One" }[ss.repeat];
       }
-
-      function updateRepeatButton() {
-        const on = state.repeat !== "off";
-        els.repeatBtn.classList.toggle("active", on);
-        els.repeatBtn.setAttribute("aria-pressed", on ? "true" : "false");
-        if (state.repeat === "all") {
-          els.repeatBtn.textContent = "Repeat: All";
-          return;
+      function updateModeText()   {
+        const order = ss.shuffle ? "shuffle" : "sequential";
+        const rep   = ss.repeat === "one" ? ", repeat current" : ss.repeat === "all" ? ", loop all" : "";
+        const q     = queue.length ? ` · ${queue.length} queued` : "";
+        el.modeText.textContent = `Mode: ${order}${rep}. Sources: ${ss.sources.length}.${q}`;
+      }
+      function updateMeta(src) {
+        if (!src) {
+          el.nowPlaying.textContent = "Offline"; el.listeners.textContent = "--"; el.peak.textContent = "--";
+          el.format.textContent = "Audio stream"; el.mount.textContent = FALLBACK_MNT;
+          el.updated.textContent = clock(new Date()); updateStreamLink(""); return;
         }
-        if (state.repeat === "one") {
-          els.repeatBtn.textContent = "Repeat: One";
-          return;
-        }
-        els.repeatBtn.textContent = "Repeat: Off";
+        el.nowPlaying.textContent = src.title; el.listeners.textContent = String(src.listeners);
+        el.peak.textContent = String(src.peak); el.format.textContent = src.codec;
+        el.mount.textContent = src.mount; el.updated.textContent = clock(new Date());
+        updateStreamLink(src.url);
       }
 
-      function updateModeText() {
-        const sourceCount = state.sources.length;
-        const order = state.shuffle ? "random order" : "sequential order";
-        const repeat =
-          state.repeat === "one"
-            ? "repeat current source"
-            : state.repeat === "all"
-              ? "loop all sources"
-              : "no auto loop";
-        els.modeText.textContent = `Mode: ${order}, ${repeat}. Sources available: ${sourceCount}.`;
-      }
-
-      function updateMeta(source) {
-        if (!source) {
-          els.nowPlaying.textContent = "Offline";
-          els.listeners.textContent = "--";
-          els.peak.textContent = "--";
-          els.format.textContent = "Audio stream";
-          els.mount.textContent = fallbackMount;
-          els.updated.textContent = formatClock(new Date());
-          updateStreamLink("");
-          return;
-        }
-        els.nowPlaying.textContent = source.title;
-        els.listeners.textContent = String(source.listeners);
-        els.peak.textContent = String(source.peak);
-        els.format.textContent = source.codec;
-        els.mount.textContent = source.mount;
-        els.updated.textContent = formatClock(new Date());
-        updateStreamLink(source.url);
-      }
-
+      /* ── Render sources / history ─────────────────────── */
       function renderHistory() {
-        els.historyList.innerHTML = "";
-        if (!state.history.length) {
-          const empty = document.createElement("div");
-          empty.className = "list-empty";
-          empty.textContent = "Track history will appear as titles update.";
-          els.historyList.appendChild(empty);
-          return;
+        el.historyList.innerHTML = "";
+        if (!ss.history.length) {
+          const e = document.createElement("div"); e.className = "list-empty";
+          e.textContent = "Track history will appear as titles update.";
+          el.historyList.appendChild(e); return;
         }
-
-        for (const item of state.history) {
-          const row = document.createElement("div");
-          row.className = "history-item";
-
-          const top = document.createElement("div");
-          top.className = "history-top";
-
-          const mount = document.createElement("span");
-          mount.textContent = item.mount;
-          const at = document.createElement("span");
-          at.textContent = item.at;
-
-          top.appendChild(mount);
-          top.appendChild(at);
-
-          const title = document.createElement("div");
-          title.className = "history-title";
-          title.textContent = item.title;
-
-          row.appendChild(top);
-          row.appendChild(title);
-          els.historyList.appendChild(row);
+        for (const item of ss.history) {
+          const row = document.createElement("div"); row.className = "history-item";
+          const top = document.createElement("div"); top.className = "history-top";
+          const m = document.createElement("span"); m.textContent = item.mount;
+          const a = document.createElement("span"); a.textContent = item.at;
+          top.appendChild(m); top.appendChild(a);
+          const t = document.createElement("div"); t.className = "history-title"; t.textContent = item.title;
+          row.appendChild(top); row.appendChild(t); el.historyList.appendChild(row);
         }
       }
-
-      function pushHistory(source) {
-        if (!source || !source.title) return;
-        const top = state.history[0];
-        if (top && top.title === source.title && top.mount === source.mount) return;
-        state.history.unshift({
-          title: source.title,
-          mount: source.mount,
-          at: formatClock(new Date()),
-        });
-        state.history = state.history.slice(0, 12);
-        renderHistory();
+      function pushHistory(src) {
+        if (!src?.title) return;
+        const top = ss.history[0];
+        if (top && top.title === src.title && top.mount === src.mount) return;
+        ss.history.unshift({ title: src.title, mount: src.mount, at: clock(new Date()) });
+        ss.history = ss.history.slice(0, 12); renderHistory();
       }
-
       function renderSources() {
-        els.sourceList.innerHTML = "";
-        if (!state.sources.length) {
-          const empty = document.createElement("div");
-          empty.className = "list-empty";
-          empty.textContent = "No live source detected. Waiting for a mount...";
-          els.sourceList.appendChild(empty);
+        el.sourceList.innerHTML = "";
+        if (!ss.sources.length) {
+          const e = document.createElement("div"); e.className = "list-empty";
+          e.textContent = "No live source detected."; el.sourceList.appendChild(e); return;
+        }
+        ss.sources.forEach((src, idx) => {
+          const btn = document.createElement("button"); btn.type = "button";
+          btn.className = `source-item${idx === ss.activeIndex ? " active" : ""}`;
+          const main = document.createElement("div"); main.className = "source-main";
+          const m = document.createElement("span"); m.textContent = src.mount;
+          const l = document.createElement("span"); l.textContent = `${src.listeners} listeners`;
+          main.appendChild(m); main.appendChild(l);
+          const sub = document.createElement("div"); sub.className = "source-sub";
+          const c = document.createElement("span"); c.textContent = src.codec;
+          const t = document.createElement("span"); t.textContent = src.title;
+          sub.appendChild(c); sub.appendChild(t);
+          btn.appendChild(main); btn.appendChild(sub);
+          btn.addEventListener("click", () => setActiveSource(idx, { autoplay: true }));
+          el.sourceList.appendChild(btn);
+        });
+      }
+
+      /* ── Audio control ────────────────────────────────── */
+      async function setActiveSource(idx, { autoplay = false } = {}) {
+        if (!ss.sources.length) return;
+        ss.activeIndex = Math.max(0, Math.min(idx, ss.sources.length - 1));
+        const src = getActive(); if (!src) return;
+        updateMeta(src); renderSources(); updateModeText(); pushHistory(src);
+        const cur = String(el.audio.dataset.streamSrc || "");
+        if (cur !== src.url) { el.audio.src = src.url; el.audio.dataset.streamSrc = src.url; el.audio.load(); }
+        if (autoplay) { try { await el.audio.play(); } catch { setStatus("Press Play if browser blocks autoplay."); } }
+      }
+      function randIdx() {
+        if (ss.sources.length <= 1) return ss.activeIndex;
+        let n = ss.activeIndex, t = 0;
+        while (n === ss.activeIndex && t++ < 16) n = Math.floor(Math.random() * ss.sources.length);
+        return n;
+      }
+      function wrappedIdx(d) {
+        const s = ss.sources.length; if (!s) return -1;
+        const c = ss.activeIndex < 0 ? 0 : ss.activeIndex; return (c + d + s) % s;
+      }
+
+      /* ── Skip / Prev ──────────────────────────────────── */
+      async function doSkip() {
+        // Instant feedback
+        el.nextBtn.disabled = true;
+        setStatus("Skipping…");
+        if (apiOk) {
+          // Fire-and-forget — don't await, UI is already updated
+          apiPost("/api/autodj/skip")
+            .then(() => setStatus("Skipped — next track loading…"))
+            .catch(() => setStatus("Skip failed — check agent connection."))
+            .finally(() => { el.nextBtn.disabled = false; });
+        } else {
+          const next = ss.shuffle ? randIdx() : wrappedIdx(1);
+          await setActiveSource(next, { autoplay: !el.audio.paused });
+          el.nextBtn.disabled = false;
+        }
+      }
+      async function doPrev() {
+        if (reqHistory.length > 0) {
+          const prev = reqHistory.pop();
+          await queueTrack(prev, { andSkip: true });
+        } else {
+          await doSkip();
+        }
+      }
+
+      /* ── Track Library ────────────────────────────────── */
+      async function loadTracks() {
+        try {
+          const data = await apiGet(`/api/tracks?radio_id=${RADIO_ID}`);
+          apiOk = true; allTracks = data.tracks || [];
+          el.trackCount.textContent = `${allTracks.length} tracks`;
+          renderTrackList();
+        } catch {
+          apiOk = false; el.trackCount.textContent = "offline";
+          el.trackList.innerHTML = `<div class="track-empty">Track library unavailable.<br>Stream controls still work.</div>`;
+        }
+      }
+      function renderTrackList() {
+        const q = new Set(queue.map(t => t.path));
+        const list = trackFilter
+          ? allTracks.filter(t => t.filename.toLowerCase().includes(trackFilter.toLowerCase())
+              || t.display_name.toLowerCase().includes(trackFilter.toLowerCase()))
+          : allTracks;
+
+        if (!list.length) {
+          el.trackList.innerHTML = `<div class="track-empty">${
+            trackFilter
+              ? "No tracks match your search."
+              : `No audio files found.<br>Upload files to <code>/data/radios/radio_${RADIO_ID}/tracks/</code>`
+          }</div>`;
           return;
         }
 
-        state.sources.forEach((source, index) => {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = `source-item${index === state.activeIndex ? " active" : ""}`;
-          btn.dataset.index = String(index);
+        el.trackList.innerHTML = "";
+        for (const track of list) {
+          const item = document.createElement("div");
+          item.className = `track-item${q.has(track.path) ? " queued" : ""}`;
 
-          const main = document.createElement("div");
-          main.className = "source-main";
-          const mount = document.createElement("span");
-          mount.textContent = source.mount;
-          const listeners = document.createElement("span");
-          listeners.textContent = `${source.listeners} listeners`;
-          main.appendChild(mount);
-          main.appendChild(listeners);
+          const icon = document.createElement("span"); icon.className = "track-icon"; icon.textContent = "🎵";
+          const info = document.createElement("div"); info.className = "track-info";
+          const name = document.createElement("div"); name.className = "track-name"; name.title = track.filename;
+          name.textContent = track.display_name;
+          const meta = document.createElement("div"); meta.className = "track-meta";
+          meta.textContent = fmtSize(track.size) + (q.has(track.path) ? " · queued" : "");
+          info.appendChild(name); info.appendChild(meta);
 
-          const sub = document.createElement("div");
-          sub.className = "source-sub";
-          const codec = document.createElement("span");
-          codec.textContent = source.codec;
-          const title = document.createElement("span");
-          title.textContent = source.title;
-          sub.appendChild(codec);
-          sub.appendChild(title);
+          const btn = document.createElement("button"); btn.className = "track-btn"; btn.type = "button";
+          btn.textContent = q.has(track.path) ? "Queued" : "Play";
+          btn.addEventListener("click", e => { e.stopPropagation(); queueTrack(track); });
 
-          btn.appendChild(main);
-          btn.appendChild(sub);
-          btn.addEventListener("click", async () => {
-            await setActiveSource(index, { autoplay: true });
+          item.appendChild(icon); item.appendChild(info); item.appendChild(btn);
+          // Double-click = play now (queue + skip)
+          item.addEventListener("dblclick", () => queueTrack(track, { andSkip: true }));
+          el.trackList.appendChild(item);
+        }
+      }
+
+      /* ── Queue ────────────────────────────────────────── */
+      async function queueTrack(track, { andSkip = false } = {}) {
+        if (!apiOk) { setStatus("Agent unavailable — cannot queue tracks."); return; }
+
+        // Optimistic update: reflect instantly in UI before API responds
+        if (!queue.find(t => t.path === track.path)) {
+          queue.push(track); reqHistory.push(track);
+        }
+        renderQueue(); renderTrackList(); updateModeText();
+        setStatus(`Queued: ${track.display_name}` + (andSkip ? " — skipping…" : ""));
+
+        // Fire API in background; revert on failure
+        apiPost(`/api/autodj/queue?uri=${encodeURIComponent(track.path)}`)
+          .catch(() => {
+            queue = queue.filter(t => t.path !== track.path);
+            renderQueue(); renderTrackList(); updateModeText();
+            setStatus("Failed to queue track.");
           });
 
-          els.sourceList.appendChild(btn);
+        if (andSkip) doSkip();
+      }
+
+      function renderQueue() {
+        if (!queue.length) {
+          el.queueList.innerHTML = `<div class="queue-empty">Queue is empty. Click <strong>Play</strong> on a track to add it.</div>`;
+          el.queueClear.style.display = "none"; updateModeText(); return;
+        }
+        el.queueClear.style.display = "";
+        el.queueList.innerHTML = "";
+        queue.forEach((track, i) => {
+          const item = document.createElement("div"); item.className = "queue-item";
+          const pos  = document.createElement("span"); pos.className = "queue-pos"; pos.textContent = `${i+1}`;
+          const name = document.createElement("span"); name.className = "queue-name";
+          name.title = track.filename; name.textContent = track.display_name;
+          const rm = document.createElement("button"); rm.className = "queue-rm"; rm.type = "button";
+          rm.textContent = "✕"; rm.title = "Remove";
+          rm.addEventListener("click", () => { queue.splice(i, 1); renderQueue(); renderTrackList(); updateModeText(); });
+          item.appendChild(pos); item.appendChild(name); item.appendChild(rm);
+          el.queueList.appendChild(item);
         });
-      }
-
-      async function setActiveSource(index, { autoplay = false } = {}) {
-        if (!state.sources.length) return;
-        const safeIndex = Math.max(0, Math.min(index, state.sources.length - 1));
-        state.activeIndex = safeIndex;
-        const source = getActiveSource();
-        if (!source) return;
-
-        updateMeta(source);
-        renderSources();
         updateModeText();
-        pushHistory(source);
-
-        const currentSrc = String(els.audio.dataset.streamSrc || "");
-        if (currentSrc !== source.url) {
-          els.audio.src = source.url;
-          els.audio.dataset.streamSrc = source.url;
-          els.audio.load();
-        }
-        if (autoplay) {
-          try {
-            await els.audio.play();
-          } catch (err) {
-            setStatus("Press Play if your browser blocks autoplay.");
-          }
-        }
       }
 
-      function randomIndexExceptCurrent() {
-        if (state.sources.length <= 1) return state.activeIndex;
-        let next = state.activeIndex;
-        let tries = 0;
-        while (next === state.activeIndex && tries < 16) {
-          next = Math.floor(Math.random() * state.sources.length);
-          tries += 1;
-        }
-        return next;
-      }
-
-      function wrappedIndex(delta) {
-        const size = state.sources.length;
-        if (!size) return -1;
-        const current = state.activeIndex < 0 ? 0 : state.activeIndex;
-        return (current + delta + size) % size;
-      }
-
-      async function goToNext(delta) {
-        if (!state.sources.length) {
-          setStatus("No source available yet.");
-          return;
-        }
-        const next = state.shuffle ? randomIndexExceptCurrent() : wrappedIndex(delta);
-        await setActiveSource(next, { autoplay: true });
-      }
-
+      /* ── Icecast status polling ───────────────────────── */
       async function refreshStatus() {
         try {
-          const res = await fetch(statusUrl, { cache: "no-store" });
-          if (!res.ok) {
-            throw new Error(`Status request failed: ${res.status}`);
-          }
+          const res = await fetch(STATUS_URL, { cache: "no-store" });
+          if (!res.ok) throw new Error(res.status);
           const data = await res.json();
-          const stats = data.icestats || {};
-          const incoming = normalizeSources(stats);
+          const incoming = normalizeSources(data.icestats || {});
 
           if (!incoming.length) {
-            state.sources = [];
-            state.activeIndex = -1;
-            updateMeta(null);
-            renderSources();
-            updateModeText();
-            setStatus("Stream offline or no mount found.");
-            return;
+            ss.sources = []; ss.activeIndex = -1;
+            updateMeta(null); renderSources(); updateModeText();
+            setStatus("Stream offline or no mount found."); return;
           }
 
-          const previous = getActiveSource();
-          const previousKey = previous ? previous.key : "";
-
-          state.sources = incoming;
-
-          let nextIndex = state.sources.findIndex((source) => source.key === previousKey);
-          if (nextIndex < 0) nextIndex = preferredIndex(state.sources);
-
-          const shouldAutoplay = !els.audio.paused && state.activeIndex !== nextIndex;
-          await setActiveSource(nextIndex, { autoplay: shouldAutoplay });
-
+          const prevKey = getActive()?.key || "";
+          ss.sources = incoming;
+          let next = ss.sources.findIndex(s => s.key === prevKey);
+          if (next < 0) next = preferredIndex(ss.sources);
+          await setActiveSource(next, { autoplay: !el.audio.paused && ss.activeIndex !== next });
           setStatus("Live and ready to play.");
-        } catch (err) {
-          setStatus("Status unavailable. Retrying...");
-        }
+        } catch { setStatus("Status unavailable. Retrying…"); }
       }
 
-      async function copyStreamUrl() {
-        const source = getActiveSource();
-        const streamUrl = getStreamUrl(source);
-        try {
-          await navigator.clipboard.writeText(streamUrl);
-          setStatus("Stream URL copied to clipboard.");
-        } catch (err) {
-          const input = document.createElement("input");
-          input.value = streamUrl;
-          document.body.appendChild(input);
-          input.select();
-          document.execCommand("copy");
-          document.body.removeChild(input);
-          setStatus("Stream URL copied.");
-        }
+      /* ── Copy URL ─────────────────────────────────────── */
+      async function copyUrl() {
+        const url = streamUrl(getActive());
+        try { await navigator.clipboard.writeText(url); }
+        catch { const i = document.createElement("input"); i.value = url; document.body.appendChild(i); i.select(); document.execCommand("copy"); document.body.removeChild(i); }
+        setStatus("Stream URL copied.");
       }
 
-      els.copyBtn.addEventListener("click", copyStreamUrl);
+      /* ── Event bindings ───────────────────────────────── */
+      el.copyBtn.addEventListener("click", copyUrl);
 
-      els.playBtn.addEventListener("click", async () => {
-        const active = getActiveSource();
-        if (!active) {
-          setStatus("No source available.");
-          return;
-        }
-        if (els.audio.paused) {
-          const streamSrc = String(els.audio.dataset.streamSrc || "");
-          if (streamSrc !== active.url) {
-            els.audio.src = active.url;
-            els.audio.dataset.streamSrc = active.url;
-            els.audio.load();
-          }
-          try {
-            await els.audio.play();
-          } catch (err) {
-            setStatus("Playback blocked. Use the native player control.");
-          }
-        } else {
-          els.audio.pause();
-        }
-        updatePlayButton();
+      el.playBtn.addEventListener("click", async () => {
+        const src = getActive(); if (!src) { setStatus("No source available."); return; }
+        if (el.audio.paused) {
+          const cur = String(el.audio.dataset.streamSrc || "");
+          if (cur !== src.url) { el.audio.src = src.url; el.audio.dataset.streamSrc = src.url; el.audio.load(); }
+          try { await el.audio.play(); } catch { setStatus("Playback blocked. Use native controls."); }
+        } else { el.audio.pause(); }
+        updatePlayBtn();
       });
 
-      els.prevBtn.addEventListener("click", () => goToNext(-1));
-      els.nextBtn.addEventListener("click", () => goToNext(1));
-
-      els.shuffleBtn.addEventListener("click", () => {
-        state.shuffle = !state.shuffle;
-        updateShuffleButton();
-        updateModeText();
+      el.nextBtn.addEventListener("click", async () => {
+        if (ss.shuffle && allTracks.length) {
+          // Shuffle = pick random from library and queue it
+          const rnd = allTracks[Math.floor(Math.random() * allTracks.length)];
+          await queueTrack(rnd, { andSkip: true });
+        } else { await doSkip(); }
       });
 
-      els.repeatBtn.addEventListener("click", () => {
-        const idx = repeatModes.indexOf(state.repeat);
-        state.repeat = repeatModes[(idx + 1) % repeatModes.length];
-        updateRepeatButton();
-        updateModeText();
+      el.prevBtn.addEventListener("click", doPrev);
+
+      el.shuffleBtn.addEventListener("click", () => { ss.shuffle = !ss.shuffle; updateShuffleBtn(); updateModeText(); });
+      el.repeatBtn.addEventListener("click",  () => {
+        const i = REPEAT_MODES.indexOf(ss.repeat);
+        ss.repeat = REPEAT_MODES[(i + 1) % REPEAT_MODES.length];
+        updateRepeatBtn(); updateModeText();
       });
 
-      els.volume.addEventListener("input", () => {
-        const volume = Number(els.volume.value);
-        els.audio.volume = volume;
-        if (volume > 0 && els.audio.muted) {
-          els.audio.muted = false;
-        }
-        updateMuteButton();
+      el.volume.addEventListener("input", () => {
+        const v = Number(el.volume.value); el.audio.volume = v;
+        if (v > 0 && el.audio.muted) el.audio.muted = false;
+        updateMuteBtn();
       });
+      el.muteBtn.addEventListener("click", () => { el.audio.muted = !el.audio.muted; updateMuteBtn(); });
 
-      els.muteBtn.addEventListener("click", () => {
-        els.audio.muted = !els.audio.muted;
-        updateMuteButton();
-      });
-
-      els.audio.addEventListener("playing", () => {
-        updatePlayButton();
-        setStatus("Playing live audio.");
-      });
-
-      els.audio.addEventListener("pause", () => {
-        updatePlayButton();
-        if (!els.audio.ended) {
-          setStatus("Playback paused.");
+      el.audio.addEventListener("playing", () => { updatePlayBtn(); setStatus("Playing live audio."); });
+      el.audio.addEventListener("pause",   () => { updatePlayBtn(); if (!el.audio.ended) setStatus("Playback paused."); });
+      el.audio.addEventListener("waiting", () => setStatus("Buffering stream…"));
+      el.audio.addEventListener("error",   () => setStatus("Audio error. Try another source."));
+      el.audio.addEventListener("ended",   async () => {
+        if (ss.repeat === "one") { el.audio.currentTime = 0; try { await el.audio.play(); } catch {} return; }
+        if (ss.repeat === "all" || ss.shuffle) {
+          const next = ss.shuffle ? randIdx() : wrappedIdx(1);
+          if (next >= 0) await setActiveSource(next, { autoplay: true });
         }
       });
 
-      els.audio.addEventListener("waiting", () => {
-        setStatus("Buffering stream...");
-      });
+      el.trackSearch.addEventListener("input", e => { trackFilter = e.target.value.trim(); renderTrackList(); });
+      el.queueClear.addEventListener("click",  () => { queue = []; renderQueue(); renderTrackList(); updateModeText(); setStatus("Queue cleared."); });
 
-      els.audio.addEventListener("error", () => {
-        setStatus("Audio error. Try another source.");
-      });
+      /* ── Init ─────────────────────────────────────────── */
+      el.audio.volume = Number(el.volume.value);
+      updatePlayBtn(); updateShuffleBtn(); updateRepeatBtn(); updateMuteBtn();
+      updateModeText(); updateStreamLink(""); renderSources(); renderHistory(); renderQueue();
 
-      els.audio.addEventListener("ended", async () => {
-        if (state.repeat === "one") {
-          els.audio.currentTime = 0;
-          try {
-            await els.audio.play();
-          } catch (err) {}
-          return;
-        }
-        if (state.repeat === "all" || state.shuffle) {
-          const next = state.shuffle ? randomIndexExceptCurrent() : wrappedIndex(1);
-          if (next >= 0) {
-            await setActiveSource(next, { autoplay: true });
-          }
-        }
-      });
-
-      els.audio.volume = Number(els.volume.value);
-      updatePlayButton();
-      updateShuffleButton();
-      updateRepeatButton();
-      updateMuteButton();
-      updateModeText();
-      updateStreamLink("");
-      renderSources();
-      renderHistory();
-
+      loadTracks();
       refreshStatus();
       setInterval(refreshStatus, 8000);
     </script>

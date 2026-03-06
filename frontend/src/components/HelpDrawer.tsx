@@ -18,7 +18,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Architecture',
     items: [
       {
-        q: "Qu'est-ce que RadioOps ?",
+        q: `Qu'est-ce que RadioOps ?`,
         a: (
           <>
             RadioOps est une console de gestion pour stations de radio web. Elle permet de surveiller
@@ -28,7 +28,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Comment les composants communiquent-ils ?',
+        q: `Comment les composants communiquent-ils ?`,
         a: (
           <div className="space-y-2">
             <div className="rounded-lg bg-muted/40 p-3 font-mono text-[11px] leading-relaxed">
@@ -51,7 +51,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Qu'est-ce que le mode MOCK_MODE ?',
+        q: `Qu'est-ce que le mode MOCK_MODE ?`,
         a: (
           <>
             Quand <code className="rounded bg-muted px-1 text-[11px]">MOCK_MODE=true</code> est activé
@@ -69,7 +69,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Nœuds (Nodes)',
     items: [
       {
-        q: 'Qu'est-ce qu'un nœud ?',
+        q: `Qu'est-ce qu'un nœud ?`,
         a: (
           <>
             Un nœud est un serveur qui exécute l'<strong>agent RadioOps</strong>. L'agent expose une
@@ -79,7 +79,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Quelle valeur mettre dans "Agent URL" ?',
+        q: `Quelle valeur mettre dans "Agent URL" ?`,
         a: (
           <div className="space-y-1.5">
             <p>L'URL doit être joignable depuis le <strong>backend</strong>, pas depuis le navigateur.</p>
@@ -92,7 +92,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Un nœud est "Unreachable" — pourquoi ?',
+        q: `Un nœud est "Unreachable" — pourquoi ?`,
         a: (
           <ul className="ml-3 list-disc space-y-1 text-xs">
             <li>Le conteneur/service agent n'est pas démarré</li>
@@ -103,7 +103,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Que signifie "Degraded" sur un nœud ?',
+        q: `Que signifie "Degraded" sur un nœud ?`,
         a: (
           <>
             L'agent répond mais au moins un des services déclarés (icecast, liquidsoap…) est inactif.
@@ -119,7 +119,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Radios & Streams',
     items: [
       {
-        q: 'Qu'est-ce qu'une Radio ?',
+        q: `Qu'est-ce qu'une Radio ?`,
         a: (
           <>
             Une Radio est une configuration de stream associée à un nœud. Elle définit les points de
@@ -129,7 +129,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Quelle différence entre "Public base URL" et "Internal base URL" ?',
+        q: `Quelle différence entre "Public base URL" et "Internal base URL" ?`,
         a: (
           <div className="space-y-2">
             <div>
@@ -145,7 +145,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Qu'est-ce qu'un "Mount" (point de montage) ?',
+        q: `Qu'est-ce qu'un "Mount" (point de montage) ?`,
         a: (
           <>
             Le mount est le chemin du stream Icecast. Par exemple avec le mount{' '}
@@ -156,7 +156,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Pourquoi le stream donne "404 file not found" ?',
+        q: `Pourquoi le stream donne "404 file not found" ?`,
         a: (
           <ul className="ml-3 list-disc space-y-1 text-xs">
             <li>Aucune source (Liquidsoap) n'est connectée à ce mount</li>
@@ -170,7 +170,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Que sont "Icecast service label" et "Liquidsoap service label" ?',
+        q: `Que sont "Icecast service label" et "Liquidsoap service label" ?`,
         a: (
           <>
             Ce sont les noms exacts des services tels que rapportés par l'agent. Si l'agent retourne{' '}
@@ -190,7 +190,7 @@ const SECTIONS: HelpSection[] = [
     title: 'AutoDJ & Bibliothèque',
     items: [
       {
-        q: 'Comment fonctionne l'AutoDJ ?',
+        q: `Comment fonctionne l'AutoDJ ?`,
         a: (
           <>
             Liquidsoap lit en continu les fichiers audio du dossier{' '}
@@ -200,7 +200,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Quels formats audio puis-je uploader ?',
+        q: `Quels formats audio puis-je uploader ?`,
         a: (
           <>
             MP3, WAV, FLAC, OGG, AAC, M4A, OPUS. Taille maximum : <strong>500 MB</strong> par fichier.
@@ -209,7 +209,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Mon fichier uploadé n'est pas joué immédiatement',
+        q: `Mon fichier uploadé n'est pas joué immédiatement`,
         a: (
           <>
             Liquidsoap recharge la playlist toutes les 10 secondes. Attendez quelques secondes ou
@@ -219,7 +219,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'La variable RADIO_ID dans docker-compose est importante',
+        q: `La variable RADIO_ID dans docker-compose est importante`,
         a: (
           <>
             Le conteneur Liquidsoap utilise{' '}
@@ -238,7 +238,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Enregistrement Live',
     items: [
       {
-        q: 'Qu'est-ce que l'enregistrement live ?',
+        q: `Qu'est-ce que l'enregistrement live ?`,
         a: (
           <>
             Le backend demande à l'agent de lancer ffmpeg pour enregistrer le stream Icecast. L'audio
@@ -249,7 +249,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Comment démarrer un enregistrement ?',
+        q: `Comment démarrer un enregistrement ?`,
         a: (
           <ol className="ml-3 list-decimal space-y-1 text-xs">
             <li>Aller sur la page de la radio → onglet "Live record"</li>
@@ -261,7 +261,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'L'enregistrement échoue avec une erreur 502',
+        q: `L'enregistrement échoue avec une erreur 502`,
         a: (
           <ul className="ml-3 list-disc space-y-1 text-xs">
             <li>L'agent est injoignable ou pas démarré</li>
@@ -279,7 +279,7 @@ const SECTIONS: HelpSection[] = [
     title: 'On Air / DJ Takeover',
     items: [
       {
-        q: 'Comment fonctionne le DJ Takeover ?',
+        q: `Comment fonctionne le DJ Takeover ?`,
         a: (
           <div className="space-y-2 text-xs">
             <p>AutoDJ tourne 24/7. Le takeover permet au DJ de prendre l'antenne sans couper le stream :</p>
@@ -293,7 +293,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Paramètres de connexion pour BUTT / OBS',
+        q: `Paramètres de connexion pour BUTT / OBS`,
         a: (
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground mb-2">
@@ -313,7 +313,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: '"PC connected" reste à off bien que connecté',
+        q: `"PC connected" reste à off bien que connecté`,
         a: (
           <>
             Liquidsoap détecte la connexion via le telnet interne (port 1234). Vérifiez que
@@ -330,7 +330,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Podcasts',
     items: [
       {
-        q: 'Structure Shows / Épisodes',
+        q: `Structure Shows / Épisodes`,
         a: (
           <>
             Un <strong>Show</strong> est une émission (ex. "Matinale du Lundi"). Il peut contenir
@@ -340,7 +340,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Comment accéder au flux RSS ?',
+        q: `Comment accéder au flux RSS ?`,
         a: (
           <>
             Chaque show dispose d'un flux RSS à l'adresse{' '}
@@ -351,7 +351,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Les fichiers audio sont-ils streamés ou téléchargés ?',
+        q: `Les fichiers audio sont-ils streamés ou téléchargés ?`,
         a: (
           <>
             En mode local (sans S3), les fichiers sont servis par le backend depuis le volume{' '}
@@ -368,7 +368,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Utilisateurs & Rôles',
     items: [
       {
-        q: 'Quels sont les rôles disponibles ?',
+        q: `Quels sont les rôles disponibles ?`,
         a: (
           <div className="space-y-2">
             <div className="rounded-lg border border-border p-3 space-y-2 text-xs">
@@ -389,7 +389,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Comment créer le premier compte admin ?',
+        q: `Comment créer le premier compte admin ?`,
         a: (
           <>
             Le compte admin est créé automatiquement au démarrage du backend via les variables d'environnement{' '}
@@ -401,7 +401,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Comment changer son mot de passe ?',
+        q: `Comment changer son mot de passe ?`,
         a: (
           <>
             Dans la barre latérale, cliquez sur "Password" en bas. Vous pouvez aussi utiliser
@@ -417,7 +417,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Audit & Actions',
     items: [
       {
-        q: 'Qu'est-ce qu'une Action ?',
+        q: `Qu'est-ce qu'une Action ?`,
         a: (
           <>
             Une Action est une commande envoyée à l'agent : <code className="rounded bg-muted px-1 text-[11px]">restart</code> ou{' '}
@@ -428,7 +428,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Quelle différence entre Restart et Reload ?',
+        q: `Quelle différence entre Restart et Reload ?`,
         a: (
           <div className="space-y-2 text-xs">
             <div>
@@ -443,7 +443,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Qu'est-ce que l'Audit Log ?',
+        q: `Qu'est-ce que l'Audit Log ?`,
         a: (
           <>
             L'audit log trace toutes les opérations significatives : connexions, modifications de
@@ -461,7 +461,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Dépannage',
     items: [
       {
-        q: 'CORS errors dans la console',
+        q: `CORS errors dans la console`,
         a: (
           <div className="space-y-2 text-xs">
             <p>
@@ -480,7 +480,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: '413 lors de l'upload de tracks',
+        q: `413 lors de l'upload de tracks`,
         a: (
           <>
             nginx limite la taille des requêtes à 1 MB par défaut. Le{' '}
@@ -491,7 +491,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: '500 sur /live/active',
+        q: `500 sur /live/active`,
         a: (
           <>
             La table <code className="rounded bg-muted px-1 text-[11px]">live_sessions</code> en base
@@ -502,7 +502,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Les logs WebSocket ne se connectent pas',
+        q: `Les logs WebSocket ne se connectent pas`,
         a: (
           <ul className="ml-3 list-disc space-y-1 text-xs">
             <li>Le ticket WS expire en 30 secondes — le composant en obtient un automatiquement</li>
@@ -512,7 +512,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Le radio est "Degraded" malgré des services actifs',
+        q: `Le radio est "Degraded" malgré des services actifs`,
         a: (
           <>
             Le label de service configuré (ex. <code className="rounded bg-muted px-1 text-[11px]">icecast2</code>) ne
@@ -530,7 +530,7 @@ const SECTIONS: HelpSection[] = [
     title: 'Raccourcis clavier',
     items: [
       {
-        q: 'Commande Palette',
+        q: `Commande Palette`,
         a: (
           <div className="space-y-2">
             <div className="rounded-lg border border-border p-3 font-mono text-xs space-y-1.5">
@@ -558,7 +558,7 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: 'Aide contextuelle',
+        q: `Aide contextuelle`,
         a: (
           <>
             Les icônes <strong>?</strong> à côté des champs affichent une explication en survol.

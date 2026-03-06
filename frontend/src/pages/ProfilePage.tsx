@@ -388,6 +388,7 @@ export function ProfilePage() {
   const { t, locale } = useLocale()
   const { radios: favRadios, nodes: favNodes } = useFavorites()
   const totalFavs = favRadios.length + favNodes.length
+  const [tab, setTab] = React.useState('preferences')
 
   return (
     <div className="space-y-6">
@@ -415,7 +416,7 @@ export function ProfilePage() {
       <Separator />
 
       {/* Tabs */}
-      <Tabs defaultValue="preferences">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="flex flex-wrap w-full">
           <TabsTrigger value="preferences" className="flex items-center gap-1.5">
             <Globe className="h-3.5 w-3.5" />

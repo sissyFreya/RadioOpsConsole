@@ -16,7 +16,34 @@ radio_id =
     radio_id
   end
 playlist_dir = "/data/radios/radio_" ^ radio_id ^ "/tracks"
-autodj = playlist(playlist_dir, reload=10, mode="normal")
+autodj = playlist(playlist_dir, reload=10, mode="normal", id="autodj")
+
+# Jukebox: on-demand track requests (priority queue)
+jukebox = request.queue(id="jukebox")
+
+# Register playlist control commands
+server.register("playlist.skip", fun (_) ->
+  begin
+    source.skip(autodj)
+    "skipped"
+  end
+)
+
+server.register("playlist.push", fun(uri) ->
+  begin
+    r = request.create(uri)
+    jukebox.push(r)
+    "pushed=" ^ uri
+  end
+)
+
+server.register("playlist.mode", fun(mode) ->
+  begin
+    # mode = "shuffle" or "normal" — toggle autodj mode at next reload
+    # (requires playlist reload; just acknowledge here)
+    "mode=" ^ mode
+  end
+)
 
 # DJ live ingest: connect your PC to Liquidsoap (NOT Icecast)
 live_in = input.harbor("live", port=8001, password="djpass", icy=true)
@@ -53,8 +80,8 @@ live_gate =
     ({ true }, live_in)
   ])
 
-# Live (when enabled) takes priority if connected, otherwise AutoDJ continues.
-s0 = fallback(track_sensitive=false, [live_gate, autodj, blank()])
+# Priority: jukebox (requested tracks) → live (if enabled) → autodj → silence
+s0 = fallback(track_sensitive=false, [jukebox, live_gate, autodj, blank()])
 
 # Smooth transitions
 s = mksafe(s0)

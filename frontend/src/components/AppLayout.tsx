@@ -1,12 +1,12 @@
 import * as React from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { apiFetch } from '../api/client'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { cn } from '../utils/cn'
-import { Radio, Server, Activity, ScrollText, LogOut, Users, Shield, Mic, KeyRound, Menu, X, HelpCircle, UserCircle } from 'lucide-react'
+import { Radio, Server, Activity, ScrollText, LogOut, Users, Shield, Mic, KeyRound, Menu, X, HelpCircle, UserCircle, ChevronUp } from 'lucide-react'
 import { RoleGate } from './RoleGate'
 import { CommandPalette } from './CommandPalette'
 import { HelpDrawer } from './HelpDrawer'
@@ -42,6 +42,101 @@ function UserAvatar({ email }: { email: string }) {
   return (
     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
       {initials}
+    </div>
+  )
+}
+
+function ProfileMenu({
+  user,
+  onOpenCp,
+  onHelpOpen,
+  onLogout,
+  t,
+}: {
+  user: { email: string; role: string } | null
+  onOpenCp: () => void
+  onHelpOpen?: () => void
+  onLogout: () => void
+  t: (key: string, fallback?: string) => string
+}) {
+  const [open, setOpen] = React.useState(false)
+  const navigate = useNavigate()
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  React.useEffect(() => {
+    if (!open) return
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  function action(fn: () => void) {
+    setOpen(false)
+    fn()
+  }
+
+  return (
+    <div ref={ref} className="relative p-3">
+      {/* Dropdown panel — rendered above the trigger */}
+      {open && (
+        <div className="absolute bottom-full left-3 right-3 mb-1 rounded-xl border border-sidebar-border bg-sidebar shadow-xl z-50 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-sidebar-border/60">
+            <UserAvatar email={user?.email ?? 'user'} />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-medium text-sidebar-foreground">{user?.email}</div>
+              <div className="text-xs capitalize text-muted-foreground">{user?.role}</div>
+            </div>
+          </div>
+          {/* Menu items */}
+          <div className="py-1">
+            <button
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+              onClick={() => action(() => navigate('/profile'))}
+            >
+              <UserCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {t('nav.profile')}
+            </button>
+            <button
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+              onClick={() => action(onOpenCp)}
+            >
+              <KeyRound className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {t('sidebar.password')}
+            </button>
+            <button
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground transition-colors"
+              onClick={() => action(onHelpOpen ?? (() => {}))}
+            >
+              <HelpCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
+              {t('nav.help')}
+            </button>
+            <div className="mx-3 my-1 h-px bg-sidebar-border/60" />
+            <button
+              className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+              onClick={() => action(onLogout)}
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              {t('sidebar.logout')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Trigger */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 hover:bg-sidebar-accent transition-colors group"
+      >
+        <UserAvatar email={user?.email ?? 'user'} />
+        <div className="min-w-0 flex-1 text-left">
+          <div className="truncate text-xs font-medium text-sidebar-foreground">{user?.email}</div>
+          <div className="text-[10px] capitalize text-muted-foreground">{user?.role}</div>
+        </div>
+        <ChevronUp className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-150', open ? 'rotate-180' : '')} />
+      </button>
     </div>
   )
 }
@@ -122,34 +217,11 @@ function SidebarContent({
         <RoleGate roles={['admin']}>
           <NavItem to="/users"  icon={Users}       label={t('nav.users')}     onClick={onNavClick} />
         </RoleGate>
-        <NavItem to="/profile" icon={UserCircle}   label={t('nav.profile')}   onClick={onNavClick} />
       </nav>
 
       {/* User footer */}
       <div className="mx-4 h-px bg-sidebar-border/60" />
-      <div className="p-4">
-        <div className="flex items-center gap-2.5">
-          <UserAvatar email={user?.email ?? 'user'} />
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-medium text-sidebar-foreground">{user?.email}</div>
-            <div className="text-[10px] capitalize text-muted-foreground">{user?.role}</div>
-          </div>
-        </div>
-        <div className="mt-3 flex gap-1">
-          <Button variant="ghost" size="sm" onClick={openCp} title={t('sidebar.password')} className="flex-1 justify-start gap-2 text-xs">
-            <KeyRound className="h-3.5 w-3.5" />
-            {t('sidebar.password')}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onHelpOpen} title={t('nav.help')} className="flex-1 justify-start gap-2 text-xs">
-            <HelpCircle className="h-3.5 w-3.5" />
-            {t('nav.help')}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={logout} className="flex-1 justify-start gap-2 text-xs">
-            <LogOut className="h-3.5 w-3.5" />
-            {t('sidebar.logout')}
-          </Button>
-        </div>
-      </div>
+      <ProfileMenu user={user} onOpenCp={openCp} onHelpOpen={onHelpOpen} onLogout={logout} t={t} />
 
       <Dialog open={cpOpen} onOpenChange={setCpOpen}>
         <DialogContent>
