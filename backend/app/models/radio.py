@@ -18,8 +18,8 @@ class Radio(Base):
     # Comma-separated mounts for MVP (keep simple). Example: "/stream,/hq"
     mounts = Column(String(512), nullable=False, default="/stream")
 
-    # Where to listen from the browser (host-visible). Example: "http://localhost:8000"
-    public_base_url = Column(String(512), nullable=False, default="http://localhost:8000")
+    # Where to listen from the browser (host-visible). Set via ICECAST_PUBLIC_BASE env var.
+    public_base_url = Column(String(512), nullable=False, default="")
 
     # Where the backend/agent should reach the stream (in-compose). Example: "http://icecast:8000"
     internal_base_url = Column(String(512), nullable=False, default="http://icecast:8000")

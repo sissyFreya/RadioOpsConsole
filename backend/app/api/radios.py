@@ -68,13 +68,20 @@ def _unique_path(dest: Path) -> Path:
         i += 1
 
 
+def _resolve_public_base(url: str | None) -> str:
+    """Return the configured public base URL, falling back to settings if unset or localhost."""
+    if url and not url.startswith("http://localhost") and not url.startswith("http://127.0.0.1"):
+        return url
+    return settings.ICECAST_PUBLIC_BASE_DEFAULT
+
+
 def _radio_public_out(radio: Radio) -> dict:
     return {
         "id": radio.id,
         "name": radio.name,
         "description": radio.description,
         "mounts": radio.mounts,
-        "public_base_url": radio.public_base_url or settings.ICECAST_PUBLIC_BASE_DEFAULT,
+        "public_base_url": _resolve_public_base(radio.public_base_url),
     }
 
 
@@ -102,7 +109,7 @@ def create_radio(payload: RadioCreate, db: Session = Depends(get_db), user=Depen
         icecast_service=payload.icecast_service,
         liquidsoap_service=payload.liquidsoap_service,
         mounts=payload.mounts,
-        public_base_url=payload.public_base_url or settings.ICECAST_PUBLIC_BASE_DEFAULT,
+        public_base_url=_resolve_public_base(payload.public_base_url),
         internal_base_url=payload.internal_base_url or settings.ICECAST_INTERNAL_BASE_DEFAULT,
     )
     db.add(radio)
@@ -227,7 +234,7 @@ async def get_radio_status(radio_id: int, db: Session = Depends(get_db), user=De
             "mounts": [m.strip() for m in (radio.mounts or "").split(",") if m.strip()],
             "icecast_service": radio.icecast_service,
             "liquidsoap_service": radio.liquidsoap_service,
-            "public_base_url": radio.public_base_url,
+            "public_base_url": _resolve_public_base(radio.public_base_url),
             "internal_base_url": radio.internal_base_url,
         },
         "node": {"id": node.id, "name": node.name, "agent_url": node.agent_url},

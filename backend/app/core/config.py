@@ -91,6 +91,13 @@ class Settings(BaseSettings):
                 "SECURITY: LIVE_INGEST_PASSWORD_HINT is the default 'djpass'. "
                 "Set a strong ingest password in Liquidsoap and update LIVE_INGEST_PASSWORD_HINT."
             )
+        if self.ICECAST_PUBLIC_BASE_DEFAULT.startswith("http://localhost") or \
+                self.ICECAST_PUBLIC_BASE_DEFAULT.startswith("http://127.0.0.1"):
+            logger.warning(
+                "CONFIG: ICECAST_PUBLIC_BASE_DEFAULT is set to localhost (%s). "
+                "Set ICECAST_PUBLIC_BASE to your server's public IP or domain in production.",
+                self.ICECAST_PUBLIC_BASE_DEFAULT,
+            )
 
 
 settings = Settings()
