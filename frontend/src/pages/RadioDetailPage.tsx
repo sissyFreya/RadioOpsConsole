@@ -386,7 +386,7 @@ export function RadioDetailPage() {
   const publicBase = st?.radio?.public_base_url || r.public_base_url || 'http://localhost:8000'
   const internalBase = st?.radio?.internal_base_url || r.internal_base_url || 'http://icecast:8000'
   const listenUrl = buildListenUrl({ ...r, public_base_url: publicBase }, mount)
-  const listenPageUrl = `${publicBase.replace(/\/$/, '')}/listen`
+  const listenPageUrl = `${publicBase.replace(/\/$/, '')}${mount}/listen`
 
   const health = getRadioHealth(r, st, statusQ.isLoading, statusQ.isError)
   // Services as reported by the agent — avoids name-mismatch with radio config fields

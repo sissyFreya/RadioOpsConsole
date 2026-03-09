@@ -380,7 +380,9 @@
     <script>
       /* ── Config ───────────────────────────────────────── */
       const STATUS_URL   = "/status-json.xsl";
-      const FALLBACK_MNT = "/stream";
+      // Detect mount from URL path: /animes/listen → /animes, /listen → /stream (default)
+      const _pathMount = (location.pathname.match(/^\/([^/]+)\/listen$/) || [])[1];
+      const FALLBACK_MNT = _pathMount ? `/${_pathMount}` : "/stream";
       const REPEAT_MODES = ["off", "all", "one"];
       const RADIO_ID     = new URLSearchParams(window.location.search).get("radio_id") || "1";
 
