@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import mimetypes
-import os
-import re
 import uuid
 from datetime import datetime, timezone
 from email.utils import format_datetime
@@ -26,23 +24,13 @@ from app.schemas.podcast import (
     PodcastShowOut,
     PodcastShowUpdate,
 )
+from app.utils.files import safe_abs_path, safe_filename
 
 router = APIRouter(prefix="/podcasts", tags=["podcasts"])
 
 
-def _safe_filename(name: str) -> str:
-    name = os.path.basename(name)
-    name = re.sub(r"[^a-zA-Z0-9._-]+", "_", name)
-    return name or "audio"
-
-
 def _abs_media_path(rel_path: str) -> Path:
-    root = settings.media_root_path.resolve()
-    p = (root / rel_path).resolve()
-    if root not in p.parents and p != root:
-        raise HTTPException(status_code=400, detail="Invalid media path")
-    p.parent.mkdir(parents=True, exist_ok=True)
-    return p
+    return safe_abs_path(settings.media_root_path.resolve(), rel_path, mkdir=True)
 
 
 def _episode_file_meta(rel_path: str) -> tuple[int | None, datetime | None]:
@@ -150,7 +138,7 @@ async def upload_episode(
     if not show:
         raise HTTPException(status_code=404, detail="Show not found")
 
-    safe_name = _safe_filename(file.filename or "episode")
+    safe_name = safe_filename(file.filename or "episode")
     ext = Path(safe_name).suffix.lower() or ".bin"
     rel_path = f"podcasts/show_{show_id}/{uuid.uuid4().hex}{ext}"
 

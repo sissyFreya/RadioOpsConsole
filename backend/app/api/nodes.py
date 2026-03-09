@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -54,7 +55,7 @@ async def nodes_status_all(
                 "status": status_data,
                 "error": None,
             }
-        except Exception as e:
+        except (httpx.HTTPError, OSError) as e:
             result = {
                 "node": {"id": node.id, "name": node.name, "agent_url": node.agent_url},
                 "status": None,
@@ -152,7 +153,7 @@ async def node_status(node_id: int, db: Session = Depends(get_db), user=Depends(
 
     try:
         status_data = await fetch_status(node.agent_url)
-    except Exception as e:
+    except (httpx.HTTPError, OSError) as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
     result = {"node": {"id": node.id, "name": node.name, "agent_url": node.agent_url}, "status": status_data}

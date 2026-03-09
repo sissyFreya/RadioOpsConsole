@@ -18,14 +18,16 @@ const AuthContext = React.createContext<AuthContextValue | null>(null)
 function getTokenExp(token: string): number | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
-    return typeof payload.exp === 'number' ? payload.exp : null
+    // Reject tokens without exp claim
+    if (typeof payload.exp !== 'number') return null
+    return payload.exp
   } catch {
     return null
   }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = React.useState<string | null>(() => localStorage.getItem('radioops_token'))
+  const [token, setToken] = React.useState<string | null>(() => sessionStorage.getItem('radioops_token'))
   const [user, setUser] = React.useState<UserMe | null>(null)
   const [loading, setLoading] = React.useState(true)
 
@@ -43,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const resp = await apiFetch<{ access_token: string }>('/auth/refresh', { method: 'POST' }, tkn)
         const newTkn = resp.access_token
         setToken(newTkn)
-        localStorage.setItem('radioops_token', newTkn)
+        sessionStorage.setItem('radioops_token', newTkn)
         scheduleRefresh(newTkn)
       } catch {
         // Refresh failed (token already expired server-side). The user will be
@@ -70,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       setUser(null)
       setToken(null)
-      localStorage.removeItem('radioops_token')
+      sessionStorage.removeItem('radioops_token')
     } finally {
       setLoading(false)
     }
@@ -86,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email, password })
     })
     setToken(resp.access_token)
-    localStorage.setItem('radioops_token', resp.access_token)
+    sessionStorage.setItem('radioops_token', resp.access_token)
     // Trigger /me fetch in next effect tick
     setLoading(true)
   }, [])
@@ -95,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
     setToken(null)
     setUser(null)
-    localStorage.removeItem('radioops_token')
+    sessionStorage.removeItem('radioops_token')
   }, [])
 
   const value: AuthContextValue = { token, user, loading, login, logout, refreshMe }

@@ -11,7 +11,7 @@ from pathlib import Path
 
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
@@ -89,86 +89,91 @@ def _purge_old_audit_events(db: Session) -> None:
 def bootstrap(db: Session):
     settings.media_root_path.mkdir(parents=True, exist_ok=True)
 
-    # Default admin
-    admin = db.query(User).filter(User.email == settings.BOOTSTRAP_ADMIN_EMAIL).first()
-    if not admin:
-        admin = User(
-            email=settings.BOOTSTRAP_ADMIN_EMAIL,
-            password_hash=hash_password(settings.BOOTSTRAP_ADMIN_PASSWORD),
-            role="admin",
-            is_active=True,
-        )
-        db.add(admin)
+    try:
+        # Default admin
+        admin = db.query(User).filter(User.email == settings.BOOTSTRAP_ADMIN_EMAIL).first()
+        if not admin:
+            admin = User(
+                email=settings.BOOTSTRAP_ADMIN_EMAIL,
+                password_hash=hash_password(settings.BOOTSTRAP_ADMIN_PASSWORD),
+                role="admin",
+                is_active=True,
+            )
+            db.add(admin)
 
-    # Default node
-    node = db.query(Node).filter(Node.name == "local-agent").first()
-    if not node:
-        node = Node(name="local-agent", agent_url=settings.DEFAULT_AGENT_URL)
-        db.add(node)
+        # Default node
+        node = db.query(Node).filter(Node.name == "local-agent").first()
+        if not node:
+            node = Node(name="local-agent", agent_url=settings.DEFAULT_AGENT_URL)
+            db.add(node)
+            db.flush()
+            db.refresh(node)
+
+        # Demo radio
+        demo_radio = db.query(Radio).filter(Radio.name == "Demo Radio").first()
+        if not demo_radio:
+            demo_radio = Radio(
+                name="Demo Radio",
+                description="Liquidsoap demo stream -> Icecast (/stream)",
+                node_id=node.id,
+                icecast_service="icecast",
+                liquidsoap_service="liquidsoap",
+                mounts="/stream",
+                public_base_url=settings.ICECAST_PUBLIC_BASE_DEFAULT,
+                internal_base_url=settings.ICECAST_INTERNAL_BASE_DEFAULT,
+            )
+            db.add(demo_radio)
+            db.flush()
+
+        # Demo playlist audio file
+        if demo_radio:
+            tracks_dir = settings.media_root_path / "radios" / f"radio_{demo_radio.id}" / "tracks"
+            legacy_dir = settings.media_root_path / "radios" / "demo" / "tracks"
+
+            if legacy_dir.exists() and not tracks_dir.exists():
+                tracks_dir.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(legacy_dir), str(tracks_dir))
+            elif legacy_dir.exists() and tracks_dir.exists():
+                for p in legacy_dir.iterdir():
+                    if not p.is_file():
+                        continue
+                    target = tracks_dir / p.name
+                    if not target.exists():
+                        shutil.move(str(p), str(target))
+
+            tracks_dir.mkdir(parents=True, exist_ok=True)
+            if not (tracks_dir / "demo.wav").exists():
+                _write_tone_wav(tracks_dir / "demo.wav", seconds=3.0, freq_hz=330.0)
+
+        # Demo podcast show
+        demo_show = db.query(PodcastShow).filter(PodcastShow.title == "Demo Podcast").first()
+        if not demo_show:
+            demo_show = PodcastShow(title="Demo Podcast", description="A demo show seeded at startup.")
+            db.add(demo_show)
+            db.flush()
+            db.refresh(demo_show)
+
+        # Demo podcast episode
+        demo_ep = db.query(PodcastEpisode).filter(PodcastEpisode.show_id == demo_show.id).first()
+        if not demo_ep:
+            rel = f"podcasts/show_{demo_show.id}/demo.wav"
+            abs_path = settings.media_root_path / rel
+            if not abs_path.exists():
+                _write_tone_wav(abs_path, seconds=6.0, freq_hz=220.0)
+            db.add(PodcastEpisode(
+                show_id=demo_show.id,
+                title="Demo Episode",
+                description="Seeded demo audio.",
+                audio_rel_path=rel,
+                source="upload",
+                recorded_from_radio_id=None,
+            ))
+
         db.commit()
-        db.refresh(node)
-
-    # Demo radio
-    demo_radio = db.query(Radio).filter(Radio.name == "Demo Radio").first()
-    if not demo_radio:
-        demo_radio = Radio(
-            name="Demo Radio",
-            description="Liquidsoap demo stream -> Icecast (/stream)",
-            node_id=node.id,
-            icecast_service="icecast",
-            liquidsoap_service="liquidsoap",
-            mounts="/stream",
-            public_base_url=settings.ICECAST_PUBLIC_BASE_DEFAULT,
-            internal_base_url=settings.ICECAST_INTERNAL_BASE_DEFAULT,
-        )
-        db.add(demo_radio)
-        db.flush()
-
-    # Demo playlist audio file
-    if demo_radio:
-        tracks_dir = settings.media_root_path / "radios" / f"radio_{demo_radio.id}" / "tracks"
-        legacy_dir = settings.media_root_path / "radios" / "demo" / "tracks"
-
-        if legacy_dir.exists() and not tracks_dir.exists():
-            tracks_dir.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(legacy_dir), str(tracks_dir))
-        elif legacy_dir.exists() and tracks_dir.exists():
-            for p in legacy_dir.iterdir():
-                if not p.is_file():
-                    continue
-                target = tracks_dir / p.name
-                if not target.exists():
-                    shutil.move(str(p), str(target))
-
-        tracks_dir.mkdir(parents=True, exist_ok=True)
-        if not (tracks_dir / "demo.wav").exists():
-            _write_tone_wav(tracks_dir / "demo.wav", seconds=3.0, freq_hz=330.0)
-
-    # Demo podcast show
-    demo_show = db.query(PodcastShow).filter(PodcastShow.title == "Demo Podcast").first()
-    if not demo_show:
-        demo_show = PodcastShow(title="Demo Podcast", description="A demo show seeded at startup.")
-        db.add(demo_show)
-        db.commit()
-        db.refresh(demo_show)
-
-    # Demo podcast episode
-    demo_ep = db.query(PodcastEpisode).filter(PodcastEpisode.show_id == demo_show.id).first()
-    if not demo_ep:
-        rel = f"podcasts/show_{demo_show.id}/demo.wav"
-        abs_path = settings.media_root_path / rel
-        if not abs_path.exists():
-            _write_tone_wav(abs_path, seconds=6.0, freq_hz=220.0)
-        db.add(PodcastEpisode(
-            show_id=demo_show.id,
-            title="Demo Episode",
-            description="Seeded demo audio.",
-            audio_rel_path=rel,
-            source="upload",
-            recorded_from_radio_id=None,
-        ))
-
-    db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Bootstrap failed — rolled back all changes")
+        raise
 
 
 # ---------------------------------------------------------------------------
@@ -210,16 +215,26 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
-# Prometheus metrics — network-accessible only (no auth middleware needed;
-# restrict via reverse-proxy / firewall in production).
+# Prometheus metrics — restricted to internal/loopback requests only.
+_METRICS_ALLOWED_PREFIXES = ("127.", "::1", "172.", "10.", "192.168.")
+
 try:
     from prometheus_fastapi_instrumentator import Instrumentator
     Instrumentator().instrument(app).expose(app, endpoint="/metrics")
-    logger.info("Prometheus metrics exposed at /metrics")
+
+    @app.middleware("http")
+    async def _restrict_metrics(request: Request, call_next):
+        if request.url.path == "/metrics":
+            client_ip = (request.headers.get("X-Forwarded-For") or request.client.host or "").split(",")[0].strip()
+            if not any(client_ip.startswith(p) for p in _METRICS_ALLOWED_PREFIXES):
+                return Response(status_code=403)
+        return await call_next(request)
+
+    logger.info("Prometheus metrics exposed at /metrics (internal only)")
 except ImportError:
     logger.warning("prometheus-fastapi-instrumentator not installed — /metrics unavailable")
 

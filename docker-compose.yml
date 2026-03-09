@@ -49,6 +49,11 @@ services:
   icecast:
     build:
       context: ./infra/icecast
+    environment:
+      ICECAST_SOURCE_PASSWORD: ${ICECAST_SOURCE_PASSWORD:-sourcepass}
+      ICECAST_RELAY_PASSWORD: ${ICECAST_RELAY_PASSWORD:-relaypass}
+      ICECAST_ADMIN_USER: ${ICECAST_ADMIN_USER:-admin}
+      ICECAST_ADMIN_PASSWORD: ${ICECAST_ADMIN_PASSWORD:-adminpass}
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/localhost/8000' 2>/dev/null || exit 1"]
       interval: 15s

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import os
-import re
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
@@ -17,18 +16,13 @@ from app.models.node import Node
 from app.models.radio import Radio
 from app.schemas.radio import RadioCreate, RadioOut, RadioPublicOut, RadioTrackOut, RadioUpdate
 from app.services.agent_client import fetch_icecast_stats, fetch_status, takeover_disable, takeover_enable, takeover_status
+from app.utils.files import safe_abs_path, safe_filename
 
 router = APIRouter(prefix="/radios", tags=["radios"])
 
 # Upload limits
 _TRACK_MAX_BYTES = 500 * 1024 * 1024  # 500 MB
 _ALLOWED_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".aac", ".m4a", ".opus"}
-
-
-def _safe_filename(name: str) -> str:
-    name = os.path.basename(name or "")
-    name = re.sub(r"[^a-zA-Z0-9._-]+", "_", name)
-    return name or "audio"
 
 
 def _validate_track_file(filename: str, content_length: int | None) -> None:
@@ -48,11 +42,7 @@ def _validate_track_file(filename: str, content_length: int | None) -> None:
 
 def _radio_tracks_dir(radio_id: int) -> Path:
     root = settings.media_root_path.resolve()
-    p = (root / "radios" / f"radio_{radio_id}" / "tracks").resolve()
-    if root not in p.parents and p != root:
-        raise HTTPException(status_code=400, detail="Invalid media path")
-    p.mkdir(parents=True, exist_ok=True)
-    return p
+    return safe_abs_path(root, f"radios/radio_{radio_id}/tracks", mkdir=True)
 
 
 def _unique_path(dest: Path) -> Path:
@@ -189,7 +179,7 @@ async def get_icecast_stats(
     base_url = (radio.internal_base_url or settings.ICECAST_INTERNAL_BASE_DEFAULT).rstrip("/")
     try:
         raw = await fetch_icecast_stats(base_url)
-    except Exception as e:
+    except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Icecast unreachable: {e}")
 
     icestats = raw.get("icestats", {})
@@ -223,7 +213,7 @@ async def get_radio_status(radio_id: int, db: Session = Depends(get_db), user=De
 
     try:
         status_data = await fetch_status(node.agent_url)
-    except Exception as e:
+    except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
     return {
@@ -258,7 +248,7 @@ async def get_takeover_status(
 
     try:
         st = await takeover_status(node.agent_url)
-    except Exception as e:
+    except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
     # Build public ingest host for UX (if not configured explicitly)
@@ -297,7 +287,7 @@ async def enable_takeover(
 
     try:
         res = await takeover_enable(node.agent_url)
-    except Exception as e:
+    except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
     db.add(AuditEvent(actor=user.email, event="takeover.enable", target=str(radio_id)))
@@ -321,7 +311,7 @@ async def disable_takeover(
 
     try:
         res = await takeover_disable(node.agent_url)
-    except Exception as e:
+    except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
     db.add(AuditEvent(actor=user.email, event="takeover.disable", target=str(radio_id)))
@@ -329,9 +319,14 @@ async def disable_takeover(
     return res
 
 
+_TRACKS_MAX = 1000
+
+
 @router.get("/{radio_id}/tracks", response_model=list[RadioTrackOut])
 def list_tracks(
     radio_id: int,
+    offset: int = 0,
+    limit: int = _TRACKS_MAX,
     db: Session = Depends(get_db),
     user=Depends(require_role("admin", "ops", "viewer")),
 ):
@@ -339,13 +334,18 @@ def list_tracks(
     if not radio:
         raise HTTPException(status_code=404, detail="Radio not found")
 
+    limit = min(limit, _TRACKS_MAX)
     tracks_dir = _radio_tracks_dir(radio_id)
     root = settings.media_root_path.resolve()
 
+    all_files = sorted(
+        (p for p in tracks_dir.iterdir() if p.is_file()),
+        key=lambda x: x.stat().st_mtime,
+        reverse=True,
+    )
+
     items: list[RadioTrackOut] = []
-    for p in sorted(tracks_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
-        if not p.is_file():
-            continue
+    for p in all_files[offset: offset + limit]:
         st = p.stat()
         rel = p.relative_to(root).as_posix()
         items.append(
@@ -375,7 +375,7 @@ async def upload_track(
     _validate_track_file(file.filename or "track", file.size)
 
     tracks_dir = _radio_tracks_dir(radio_id)
-    safe_name = _safe_filename(file.filename or "track")
+    safe_name = safe_filename(file.filename or "track")
     dest = _unique_path(tracks_dir / safe_name)
 
     written = 0
