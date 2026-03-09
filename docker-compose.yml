@@ -112,7 +112,7 @@ services:
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
       DEFAULT_AGENT_URL: ${AGENT_URL:-http://agent:9000}
       MEDIA_ROOT: "/data"
-      ICECAST_PUBLIC_BASE_DEFAULT: "http://localhost:8000"
+      ICECAST_PUBLIC_BASE_DEFAULT: "${ICECAST_PUBLIC_BASE:-http://localhost:8000}"
       ICECAST_INTERNAL_BASE_DEFAULT: "http://icecast:8000"
       # Redis cache — uncomment to enable:
       # REDIS_URL: "redis://redis:6379/0"
