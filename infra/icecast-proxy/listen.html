@@ -461,7 +461,7 @@
           const guessed = s.mount || parseMount(rawUrl) || (i === 0 ? FALLBACK_MNT : `/stream-${i+1}`);
           const mount = guessed.startsWith("/") ? guessed : `/${guessed}`;
           let url = `${location.origin}${mount}`;
-          if (rawUrl) { try { url = new URL(rawUrl, location.origin).toString(); } catch {} }
+          if (rawUrl) { try { const p = new URL(rawUrl, location.origin); if (p.hostname !== "localhost" && p.hostname !== "127.0.0.1") url = p.toString(); } catch {} }
           const title = s.title || s.song || s.server_name || s.server_description || "Live stream";
           return {
             key: `${mount}::${url}`, mount, url, title: String(title),
