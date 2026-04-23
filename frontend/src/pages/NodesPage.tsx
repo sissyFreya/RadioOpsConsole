@@ -106,7 +106,7 @@ export function NodesPage() {
   const [deleteTarget, setDeleteTarget] = React.useState<NodeOut | null>(null)
 
   // Bulk actions
-  const [bulkService, setBulkService] = React.useState('icecast2')
+  const [bulkService, setBulkService] = React.useState('icecast')
   const [bulkAction, setBulkAction] = React.useState<'restart' | 'reload'>('restart')
   const [bulkSelected, setBulkSelected] = React.useState<Set<number>>(new Set())
 
@@ -484,7 +484,7 @@ export function NodesPage() {
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">Service</div>
                 <Input
-                  placeholder="e.g. icecast2"
+                  placeholder="e.g. icecast"
                   value={bulkService}
                   onChange={(e) => setBulkService(e.target.value)}
                 />

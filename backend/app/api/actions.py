@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_role
 from app.core.limiter import limiter
+from app.core.metrics import action_total
 from app.db.session import get_db
 from app.models.action import Action
 from app.models.audit import AuditEvent
@@ -43,13 +44,16 @@ async def create_action(request: Request, payload: ActionCreate, db: Session = D
         act.output = str(e)
         db.add(AuditEvent(actor=user.email, event="action.error", target=str(act.id), result="error", details=str(e)))
 
+    action_total.labels(status=act.status).inc()
     db.commit()
     db.refresh(act)
     return act
 
 
 @router.post("/bulk", response_model=list[ActionOut])
+@limiter.limit("10/minute")
 async def bulk_actions(
+    request: Request,
     items: list[ActionCreate],
     db: Session = Depends(get_db),
     user=Depends(require_role("admin", "ops")),
@@ -96,6 +100,7 @@ async def bulk_actions(
         except Exception as e:
             act.status = "error"
             act.output = str(e)
+        action_total.labels(status=act.status).inc()
         db.add(act)
         db.add(AuditEvent(
             actor=user.email,

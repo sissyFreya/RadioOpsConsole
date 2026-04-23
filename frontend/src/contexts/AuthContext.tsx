@@ -17,7 +17,10 @@ const AuthContext = React.createContext<AuthContextValue | null>(null)
 /** Decode the `exp` claim from a JWT without a library. Returns unix seconds or null. */
 function getTokenExp(token: string): number | null {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]))
+    const encoded = token.split('.')[1]
+    if (!encoded) return null
+    const padded = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=')
+    const payload = JSON.parse(atob(padded))
     // Reject tokens without exp claim
     if (typeof payload.exp !== 'number') return null
     return payload.exp

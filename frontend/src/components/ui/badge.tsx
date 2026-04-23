@@ -1,9 +1,10 @@
 import * as React from 'react'
 import { cn } from '../../utils/cn'
 
-export function Badge({ className, variant='default', ...props }: React.HTMLAttributes<HTMLSpanElement> & {variant?: 'default'|'success'|'warning'|'danger'}) {
+export function Badge({ className, variant='default', ...props }: React.HTMLAttributes<HTMLSpanElement> & {variant?: 'default'|'secondary'|'success'|'warning'|'danger'}) {
   const variants: Record<string,string> = {
     default: 'bg-muted text-muted-foreground border-border',
+    secondary: 'bg-secondary text-secondary-foreground border-border',
     success: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
     warning: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
     danger: 'bg-red-500/15 text-red-300 border-red-500/30',

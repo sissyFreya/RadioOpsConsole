@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import mimetypes
 import uuid
 from datetime import datetime, timezone
@@ -12,7 +10,9 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, 
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_role
-from app.services.storage import storage_delete, storage_url, storage_write
+from app.core.limiter import limiter
+from app.core.metrics import podcast_upload_total
+from app.services.storage import storage_delete, storage_write
 from app.core.config import settings
 from app.db.session import get_db
 from app.models.audit import AuditEvent
@@ -28,9 +28,75 @@ from app.utils.files import safe_abs_path, safe_filename
 
 router = APIRouter(prefix="/podcasts", tags=["podcasts"])
 
+_EPISODE_MAX_BYTES = 500 * 1024 * 1024  # 500 MB
+_ALLOWED_AUDIO_EXTENSIONS = {".mp3", ".wav", ".flac", ".ogg", ".aac", ".m4a", ".opus"}
+
 
 def _abs_media_path(rel_path: str) -> Path:
-    return safe_abs_path(settings.media_root_path.resolve(), rel_path, mkdir=True)
+    return safe_abs_path(settings.media_root_path.resolve(), rel_path)
+
+
+def _validate_episode_file(filename: str, content_length: int | None) -> None:
+    ext = Path(filename).suffix.lower()
+    if ext not in _ALLOWED_AUDIO_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type '{ext}' not allowed. Accepted: {', '.join(sorted(_ALLOWED_AUDIO_EXTENSIONS))}",
+        )
+    if content_length is not None and content_length > _EPISODE_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum allowed size is {_EPISODE_MAX_BYTES // (1024 * 1024)} MB.",
+        )
+
+
+async def _read_upload_limited(file: UploadFile, max_bytes: int) -> bytes:
+    data = bytearray()
+    try:
+        while True:
+            chunk = await file.read(1024 * 1024)
+            if not chunk:
+                break
+            data.extend(chunk)
+            if len(data) > max_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large. Maximum allowed size is {max_bytes // (1024 * 1024)} MB.",
+                )
+        return bytes(data)
+    finally:
+        await file.close()
+
+
+async def _write_upload_limited_local(file: UploadFile, rel_path: str, max_bytes: int) -> None:
+    dest = safe_abs_path(settings.media_root_path.resolve(), rel_path, mkdir=True)
+    tmp = dest.with_name(f".{dest.name}.{uuid.uuid4().hex}.tmp")
+    written = 0
+    try:
+        with tmp.open("wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > max_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large. Maximum allowed size is {max_bytes // (1024 * 1024)} MB.",
+                    )
+                out.write(chunk)
+        tmp.replace(dest)
+    finally:
+        await file.close()
+        tmp.unlink(missing_ok=True)
+
+
+async def _store_episode_upload(file: UploadFile, rel_path: str) -> None:
+    if settings.S3_ENDPOINT:
+        data = await _read_upload_limited(file, _EPISODE_MAX_BYTES)
+        await storage_write(rel_path, data)
+        return
+    await _write_upload_limited_local(file, rel_path, _EPISODE_MAX_BYTES)
 
 
 def _episode_file_meta(rel_path: str) -> tuple[int | None, datetime | None]:
@@ -126,7 +192,9 @@ def list_episodes(show_id: int, db: Session = Depends(get_db), user=Depends(requ
 
 
 @router.post("/shows/{show_id}/episodes/upload", response_model=PodcastEpisodeOut)
+@limiter.limit("10/minute")
 async def upload_episode(
+    request: Request,
     show_id: int,
     file: UploadFile = File(...),
     title: str | None = None,
@@ -138,12 +206,25 @@ async def upload_episode(
     if not show:
         raise HTTPException(status_code=404, detail="Show not found")
 
+    try:
+        _validate_episode_file(file.filename or "episode", file.size)
+    except HTTPException:
+        await file.close()
+        podcast_upload_total.labels(status="rejected").inc()
+        raise
+
     safe_name = safe_filename(file.filename or "episode")
     ext = Path(safe_name).suffix.lower() or ".bin"
     rel_path = f"podcasts/show_{show_id}/{uuid.uuid4().hex}{ext}"
 
-    data = await file.read()
-    await storage_write(rel_path, data)
+    try:
+        await _store_episode_upload(file, rel_path)
+    except HTTPException:
+        podcast_upload_total.labels(status="rejected").inc()
+        raise
+    except Exception:
+        podcast_upload_total.labels(status="error").inc()
+        raise
 
     ep = PodcastEpisode(
         show_id=show_id,
@@ -157,6 +238,7 @@ async def upload_episode(
     db.add(AuditEvent(actor=user.email, event="podcast.episode.upload", target=f"show:{show_id}"))
     db.commit()
     db.refresh(ep)
+    podcast_upload_total.labels(status="ok").inc()
     return _episode_out(ep)
 
 

@@ -1,3 +1,4 @@
+import * as React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../contexts/AuthContext'
 import { apiFetch } from '../api/client'
@@ -37,6 +38,16 @@ export function DashboardPage() {
     staleTime: STALE_MS,
   })
 
+  // Ticker for "updated X seconds ago" — updates every second without re-fetching
+  const [nowMs, setNowMs] = React.useState(Date.now())
+  React.useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const secAgo = fleet.dataUpdatedAt ? Math.round((nowMs - fleet.dataUpdatedAt) / 1000) : null
+  const isStale = secAgo !== null && secAgo > STALE_MS / 1000
+
   const entries = fleet.data?.nodes ?? []
 
   return (
@@ -45,6 +56,13 @@ export function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{t('dashboard.title')}</h1>
           <p className="text-sm text-muted-foreground">{t('dashboard.subtitle')}</p>
+          {secAgo !== null && (
+            <p className={cn('mt-0.5 text-xs', isStale ? 'text-amber-400' : 'text-muted-foreground/60')}>
+              {isStale
+                ? `⚠ ${t('dashboard.stale')} (${secAgo}${t('dashboard.seconds')})`
+                : `${t('dashboard.updatedAgo')} ${secAgo}${t('dashboard.seconds')}`}
+            </p>
+          )}
         </div>
         <Button
           variant="ghost"

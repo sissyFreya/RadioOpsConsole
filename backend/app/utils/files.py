@@ -8,6 +8,12 @@ from pathlib import Path
 from fastapi import HTTPException
 
 
+def slugify(name: str, fallback: str = "radio") -> str:
+    """Convert a radio name to a URL-safe slug: 'Demo Radio' → 'demo-radio'."""
+    s = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    return s or fallback
+
+
 def safe_filename(name: str, fallback: str = "audio") -> str:
     """Sanitize a filename: strip path separators and keep only safe characters."""
     name = os.path.basename(name or "")

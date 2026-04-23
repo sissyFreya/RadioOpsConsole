@@ -587,7 +587,7 @@
         setStatus("Skipping…");
         if (apiOk) {
           // Fire-and-forget — don't await, UI is already updated
-          apiPost("/api/autodj/skip")
+          apiPost(`/api/autodj/skip?radio_id=${RADIO_ID}`)
             .then(() => setStatus("Skipped — next track loading…"))
             .catch(() => setStatus("Skip failed — check agent connection."))
             .finally(() => { el.nextBtn.disabled = false; });
@@ -670,7 +670,7 @@
         setStatus(`Queued: ${track.display_name}` + (andSkip ? " — skipping…" : ""));
 
         // Fire API in background; revert on failure
-        apiPost(`/api/autodj/queue?uri=${encodeURIComponent(track.path)}`)
+        apiPost(`/api/autodj/queue?radio_id=${RADIO_ID}&uri=${encodeURIComponent(track.path)}`)
           .catch(() => {
             queue = queue.filter(t => t.path !== track.path);
             renderQueue(); renderTrackList(); updateModeText();

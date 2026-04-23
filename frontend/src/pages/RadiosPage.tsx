@@ -331,7 +331,7 @@ export function RadioDetailPage() {
                         <div className="text-sm text-zinc-200 font-medium">{activeLiveQ.data.title}</div>
                         <div className="text-xs text-zinc-500">mount: {activeLiveQ.data.mount} • rec: {activeLiveQ.data.recording_id}</div>
                       </div>
-                      <Badge variant="warning" as any>RUNNING</Badge>
+                      <Badge variant="warning">RUNNING</Badge>
                     </div>
                     {activeLiveQ.data.description ? <div className="text-xs text-zinc-400 mt-2">{activeLiveQ.data.description}</div> : null}
                     <div className="text-xs text-zinc-500 mt-2 break-all">file: {activeLiveQ.data.output_rel_path}</div>
@@ -687,9 +687,9 @@ export function RadiosPage() {
   const [name, setName] = React.useState('')
   const [description, setDescription] = React.useState('')
   const [nodeId, setNodeId] = React.useState('')
-  const [mounts, setMounts] = React.useState('/stream')
-  const [icecastService, setIcecastService] = React.useState('icecast2')
-  const [liquidsoapService, setLiquidsoapService] = React.useState('liquidsoap')
+  const [mounts, setMounts] = React.useState('')
+  const [icecastService, setIcecastService] = React.useState('icecast')
+  const [liquidsoapService, setLiquidsoapService] = React.useState('')
   const [publicBaseUrl, setPublicBaseUrl] = React.useState('')
   const [internalBaseUrl, setInternalBaseUrl] = React.useState('')
   const [search, setSearch] = React.useState('')
@@ -716,9 +716,9 @@ export function RadiosPage() {
             name: name.trim(),
             description: description.trim() ? description.trim() : null,
             node_id: Number(nodeId),
-            mounts: mounts.trim() || '/stream',
-            icecast_service: icecastService.trim() || 'icecast2',
-            liquidsoap_service: liquidsoapService.trim() || 'liquidsoap',
+            mounts: mounts.trim() || null,
+            icecast_service: icecastService.trim() || 'icecast',
+            liquidsoap_service: liquidsoapService.trim() || null,
             public_base_url: publicBaseUrl.trim() ? publicBaseUrl.trim() : null,
             internal_base_url: internalBaseUrl.trim() ? internalBaseUrl.trim() : null
           })
@@ -730,9 +730,9 @@ export function RadiosPage() {
       setName('')
       setDescription('')
       setNodeId('')
-      setMounts('/stream')
-      setIcecastService('icecast2')
-      setLiquidsoapService('liquidsoap')
+      setMounts('')
+      setIcecastService('icecast')
+      setLiquidsoapService('')
       setPublicBaseUrl('')
       setInternalBaseUrl('')
       qc.invalidateQueries({ queryKey: ['radios'] })
@@ -856,9 +856,9 @@ export function RadiosPage() {
     setName(`${radio.name} copy`)
     setDescription(radio.description || '')
     setNodeId(String(radio.node_id))
-    setMounts(radio.mounts || '/stream')
-    setIcecastService(radio.icecast_service || 'icecast2')
-    setLiquidsoapService(radio.liquidsoap_service || 'liquidsoap')
+    setMounts('')
+    setIcecastService(radio.icecast_service || 'icecast')
+    setLiquidsoapService('')
     setPublicBaseUrl(radio.public_base_url || '')
     setInternalBaseUrl(radio.internal_base_url || '')
   }
@@ -966,9 +966,9 @@ export function RadiosPage() {
               </div>
               <div className="space-y-1 md:col-span-2">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  {t('radios.mountsLabel')} <HelpTip text="Comma-separated list of mounts. Example: /stream,/hq" />
+                  {t('radios.mountsLabel')} <HelpTip text="Icecast mount path for this radio. Leave blank to auto-assign /radio_{id}. Use a unique path per radio — e.g. /jazz or /radio_2." />
                 </div>
-                <Input value={mounts} onChange={(e) => setMounts(e.target.value)} placeholder="/stream" disabled={!canWrite} />
+                <Input value={mounts} onChange={(e) => setMounts(e.target.value)} placeholder="auto (/radio_{id})" disabled={!canWrite} />
               </div>
             </div>
 
@@ -982,11 +982,13 @@ export function RadiosPage() {
               <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <div className="text-xs text-muted-foreground">Icecast service label</div>
-                  <Input value={icecastService} onChange={(e) => setIcecastService(e.target.value)} placeholder="icecast2" disabled={!canWrite} />
+                  <Input value={icecastService} onChange={(e) => setIcecastService(e.target.value)} placeholder="icecast" disabled={!canWrite} />
                 </div>
                 <div className="space-y-1">
-                  <div className="text-xs text-muted-foreground">Liquidsoap service label</div>
-                  <Input value={liquidsoapService} onChange={(e) => setLiquidsoapService(e.target.value)} placeholder="liquidsoap" disabled={!canWrite} />
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    Liquidsoap service label <HelpTip text="Leave blank to auto-assign liquidsoap_{id}. Must match the service name reported by the agent." />
+                  </div>
+                  <Input value={liquidsoapService} onChange={(e) => setLiquidsoapService(e.target.value)} placeholder="auto (liquidsoap_{id})" disabled={!canWrite} />
                 </div>
                 <div className="space-y-1">
                   <div className="text-xs text-muted-foreground">Public base URL (listeners)</div>

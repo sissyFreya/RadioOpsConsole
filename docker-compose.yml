@@ -70,33 +70,84 @@ services:
     ports:
       - "8000:8000"
 
-  liquidsoap:
+  # ---------------------------------------------------------------------------
+  # One Liquidsoap container per radio — each outputs to its own Icecast mount.
+  # To add a radio: uncomment the next slot, pick the next free ingest port,
+  # and add the mapping to agent's RADIO_LIQUIDSOAP_MAP.
+  # ---------------------------------------------------------------------------
+  liquidsoap_1:
     build:
       context: ./infra/liquidsoap
     depends_on:
       icecast:
         condition: service_healthy
     environment:
-      RADIO_ID: ${RADIO_ID:-1}
+      RADIO_ID: "1"
+      RADIO_MOUNT: ${RADIO_1_MOUNT:-/radio_1}
+      LIQUIDSOAP_TELNET_PORT: "1234"
+      LIVE_INGEST_PORT: "8001"
+      LIVE_INGEST_PASSWORD: ${LIVE_INGEST_PASSWORD:-djpass}
     ports:
-      - "8001:8001"  # DJ live ingest (connect your PC here)
+      - "8001:8001"
     volumes:
       - media:/data
+
+  liquidsoap_2:
+    build:
+      context: ./infra/liquidsoap
+    depends_on:
+      icecast:
+        condition: service_healthy
+    environment:
+      RADIO_ID: "2"
+      RADIO_MOUNT: ${RADIO_2_MOUNT:-/radio_2}
+      LIQUIDSOAP_TELNET_PORT: "1234"
+      LIVE_INGEST_PORT: "8002"
+      LIVE_INGEST_PASSWORD: ${LIVE_INGEST_PASSWORD:-djpass}
+    ports:
+      - "8002:8002"
+    volumes:
+      - media:/data
+
+  # liquidsoap_3:
+  #   build:
+  #     context: ./infra/liquidsoap
+  #   depends_on:
+  #     icecast:
+  #       condition: service_healthy
+  #   environment:
+  #     RADIO_ID: "3"
+  #     RADIO_MOUNT: "/radio_3"
+  #     LIQUIDSOAP_TELNET_PORT: "1234"
+  #     LIVE_INGEST_PORT: "8003"
+  #     LIVE_INGEST_PASSWORD: ${LIVE_INGEST_PASSWORD:-djpass}
+  #   ports:
+  #     - "8003:8003"
+  #   volumes:
+  #     - media:/data
 
   agent:
     build:
       context: ./agent
     environment:
       MOCK_MODE: "true"
-      ALLOWED_SERVICES: "icecast,liquidsoap"
+      # icecast is shared; liquidsoap_N must match radio N's liquidsoap_service field in the DB.
+      ALLOWED_SERVICES: "icecast,liquidsoap_1,liquidsoap_2"
+      AGENT_SHARED_TOKEN: ${AGENT_SHARED_TOKEN:-dev-agent-token}
       DATA_ROOT: "/data"
+      # radio_id:liquidsoap_host:telnet_port:ingest_port
+      # Add an entry here whenever you uncomment a new liquidsoap_N service above.
+      RADIO_LIQUIDSOAP_MAP: "1:liquidsoap_1:1234:8001,2:liquidsoap_2:1234:8002"
+    depends_on:
+      - liquidsoap_1
+      - liquidsoap_2
     volumes:
       - media:/data
     # Port NOT exposed to host — agent is internal only, reachable by backend.
     # ports:
     #   - "9000:9000"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/status', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9000/health', timeout=3)"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -116,6 +167,7 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@local}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-admin}
       DEFAULT_AGENT_URL: ${AGENT_URL:-http://agent:9000}
+      AGENT_SHARED_TOKEN: ${AGENT_SHARED_TOKEN:-dev-agent-token}
       MEDIA_ROOT: "/data"
       ICECAST_PUBLIC_BASE_DEFAULT: "${ICECAST_PUBLIC_BASE:-http://localhost:8000}"
       ICECAST_INTERNAL_BASE_DEFAULT: "http://icecast:8000"
@@ -135,7 +187,9 @@ services:
         condition: service_started
       icecast:
         condition: service_healthy
-      liquidsoap:
+      liquidsoap_1:
+        condition: service_started
+      liquidsoap_2:
         condition: service_started
     ports:
       - "8081:8000"
@@ -155,6 +209,7 @@ services:
         # Empty = use relative URLs proxied by nginx — no CORS.
         # Override only if frontend is served from a different origin than the API.
         VITE_API_BASE: ${VITE_API_BASE:-}
+        VITE_AGENT_WS_BASE: ${VITE_AGENT_WS_BASE:-}
     ports:
       - "5173:80"
     depends_on:

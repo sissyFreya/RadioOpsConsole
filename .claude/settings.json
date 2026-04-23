@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile app/core/logging_config.py app/core/metrics.py app/core/config.py app/services/cache.py app/services/storage.py app/main.py app/api/podcasts.py app/api/radios.py app/api/actions.py alembic/versions/0006_constraints.py)",
+      "Bash(npx.cmd tsc *)",
+      "Bash(npm.cmd run *)",
+      "Bash(python -m pytest --tb=short -q)",
+      "Bash(py -m pytest --tb=short -q)",
+      "Bash(py -m pytest tests/test_rbac.py::TestNodesRBAC::test_viewer_can_list_nodes --tb=long)",
+      "Bash(py -m pytest tests/test_alembic.py --tb=short)"
+    ]
+  }
+}

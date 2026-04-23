@@ -88,6 +88,22 @@ async def cache_delete(key: str) -> None:
         logger.debug("cache_delete error: %s", exc)
 
 
+def cache_is_configured() -> bool:
+    """Return True when Redis is configured and currently connected."""
+    return _redis is not None
+
+
+async def cache_ping() -> bool | None:
+    """Ping Redis. Returns True if reachable, False on error, None if not configured."""
+    if _redis is None:
+        return None
+    try:
+        await _redis.ping()
+        return True
+    except Exception:
+        return False
+
+
 async def cache_delete_prefix(prefix: str) -> None:
     """Delete all keys matching *prefix** (SCAN-based, safe for production)."""
     if _redis is None:

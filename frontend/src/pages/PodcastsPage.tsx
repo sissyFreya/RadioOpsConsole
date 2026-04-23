@@ -231,9 +231,7 @@ export function PodcastsPage() {
   const agentWsBase = React.useMemo(() => {
     const envBase = import.meta.env.VITE_AGENT_WS_BASE as string | undefined
     if (envBase) return envBase.replace(/\/$/, '')
-    if (typeof window === 'undefined') return ''
-    const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-    return `${proto}://${window.location.hostname}:9000`
+    return ''
   }, [])
 
   const mounts = React.useMemo(() => getMountList(selectedRadio?.mounts), [selectedRadio?.mounts])
@@ -618,7 +616,7 @@ export function PodcastsPage() {
         stopBrowserMic(true)
       }
       ws.onclose = () => {
-        if (browserMicStatus === 'streaming' || browserMicStatus === 'connecting') {
+        if (browserWsRef.current === ws) {
           stopBrowserMic()
         }
       }

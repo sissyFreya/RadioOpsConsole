@@ -226,7 +226,28 @@ const translations: Record<Locale, Record<string, string>> = {
     'logs.subtitle':    'Logs en temps réel via WebSocket.',
     'logs.filtersTitle':'Filtres',
     'logs.filtersDesc': 'Sélectionnez un nœud et un service.',
-    'logs.tip':         'En démo compose, utilisez icecast2 ou liquidsoap',
+    'logs.tip':         'En démo compose, utilisez icecast ou liquidsoap',
+    // System Health
+    'health.title':          'Santé du système',
+    'health.subtitle':       'État en temps réel des composants de l\'infrastructure.',
+    'health.refresh':        'Actualiser',
+    'health.db':             'Base de données',
+    'health.redis':          'Cache Redis',
+    'health.storage':        'Stockage média',
+    'health.agents':         'Agents',
+    'health.latency':        'Latence',
+    'health.notConfigured':  'Non configuré',
+    'health.freeSpace':      'Espace libre',
+    'health.bucket':         'Bucket',
+    'health.overall.ok':     'Tous les composants sont opérationnels.',
+    'health.overall.degraded':'Un ou plusieurs composants sont dégradés.',
+    'health.error':          'Erreur de chargement du statut système.',
+    // Dashboard freshness
+    'dashboard.updatedAgo':  'Mis à jour il y a',
+    'dashboard.stale':       'Données périmées',
+    'dashboard.seconds':     's',
+    // Nav system health
+    'nav.health':            'Santé système',
   },
 
   en: {
@@ -441,7 +462,28 @@ const translations: Record<Locale, Record<string, string>> = {
     'logs.subtitle':    'Real-time tail via WebSocket (backend proxies to the node agent).',
     'logs.filtersTitle':'Filters',
     'logs.filtersDesc': 'Select a node and a service.',
-    'logs.tip':         'In compose demo use icecast2 or liquidsoap',
+    'logs.tip':         'In compose demo use icecast or liquidsoap',
+    // System Health
+    'health.title':          'System Health',
+    'health.subtitle':       'Real-time status of all infrastructure components.',
+    'health.refresh':        'Refresh',
+    'health.db':             'Database',
+    'health.redis':          'Redis Cache',
+    'health.storage':        'Media Storage',
+    'health.agents':         'Agents',
+    'health.latency':        'Latency',
+    'health.notConfigured':  'Not configured',
+    'health.freeSpace':      'Free space',
+    'health.bucket':         'Bucket',
+    'health.overall.ok':     'All components are operational.',
+    'health.overall.degraded':'One or more components are degraded.',
+    'health.error':          'Failed to load system health.',
+    // Dashboard freshness
+    'dashboard.updatedAgo':  'Updated',
+    'dashboard.stale':       'Stale data',
+    'dashboard.seconds':     's ago',
+    // Nav system health
+    'nav.health':            'System Health',
   },
 }
 

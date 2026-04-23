@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class LiveStartRequest(BaseModel):
@@ -16,6 +16,8 @@ class LiveStopRequest(BaseModel):
 
 
 class LiveSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     radio_id: int
     show_id: int
@@ -25,6 +27,3 @@ class LiveSessionOut(BaseModel):
     recording_id: str
     output_rel_path: str
     status: str
-
-    class Config:
-        from_attributes = True

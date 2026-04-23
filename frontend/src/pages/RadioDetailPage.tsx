@@ -386,7 +386,11 @@ export function RadioDetailPage() {
   const publicBase = st?.radio?.public_base_url || r.public_base_url || 'http://localhost:8000'
   const internalBase = st?.radio?.internal_base_url || r.internal_base_url || 'http://icecast:8000'
   const listenUrl = buildListenUrl({ ...r, public_base_url: publicBase }, mount)
-  const listenPageUrl = `${publicBase.replace(/\/$/, '')}${mount}/listen`
+
+  const isLocalBrowser = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  const publicBaseHost = (() => { try { return new URL(publicBase).hostname } catch { return '' } })()
+  const showLocalhostWarning = isLocalBrowser && publicBaseHost !== 'localhost' && publicBaseHost !== '127.0.0.1' && publicBaseHost !== ''
+  const listenPageUrl = `${publicBase.replace(/\/$/, '')}${mount}/listen?radio_id=${r.id}`
 
   const health = getRadioHealth(r, st, statusQ.isLoading, statusQ.isError)
   // Services as reported by the agent — avoids name-mismatch with radio config fields
@@ -442,6 +446,23 @@ export function RadioDetailPage() {
 
   return (
     <div className="space-y-6">
+      {showLocalhostWarning && (
+        <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-300 flex flex-wrap items-center gap-3">
+          <span className="font-medium">Local Docker detected</span>
+          <span className="text-yellow-300/70">
+            Public URL is set to <span className="font-mono text-yellow-200">{publicBase}</span> — unreachable from localhost.
+            The stream player and listener links will not work.
+          </span>
+          {canOps && (
+            <button
+              className="ml-auto shrink-0 rounded-md bg-yellow-500/20 px-3 py-1 text-xs font-medium text-yellow-200 hover:bg-yellow-500/30 transition-colors"
+              onClick={() => setDraft((d) => d ? { ...d, public_base_url: 'http://localhost:8000' } : d)}
+            >
+              Use localhost:8000
+            </button>
+          )}
+        </div>
+      )}
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -711,8 +732,8 @@ export function RadioDetailPage() {
               </div>
 
               <div className="text-xs text-muted-foreground">
-                AutoDJ reads <span className="text-foreground">/data/radios/radio_{r.id}/tracks</span>. Ensure the Liquidsoap
-                container uses <span className="text-foreground">RADIO_ID={r.id}</span>.
+                Tracks are stored in <span className="font-mono text-foreground">/data/radios/radio_{r.id}/tracks</span>.
+                AutoDJ scans all radio libraries recursively — no per-radio configuration needed.
               </div>
 
               <div className="grid gap-3 md:grid-cols-[1fr_160px]">
@@ -1055,12 +1076,26 @@ export function RadioDetailPage() {
                     hint="URL qu'utilisent les auditeurs. Ex: http://radio.example.com:8000 — visible dans les lecteurs et le flux RSS."
                     side="right"
                   />
-                  <Input
-                    value={draftRadio.public_base_url || ''}
-                    onChange={(e) => setDraft({ ...draftRadio, public_base_url: e.target.value })}
-                    disabled={!canOps}
-                    placeholder="http://localhost:8000"
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      value={draftRadio.public_base_url || ''}
+                      onChange={(e) => setDraft({ ...draftRadio, public_base_url: e.target.value })}
+                      disabled={!canOps}
+                      placeholder="http://localhost:8000"
+                      className="flex-1"
+                    />
+                    {canOps && isLocalBrowser && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 text-xs"
+                        onClick={() => setDraft({ ...draftRadio, public_base_url: 'http://localhost:8000' })}
+                      >
+                        localhost
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <LabelWithHint
@@ -1094,7 +1129,7 @@ export function RadioDetailPage() {
                 <div className="space-y-1">
                   <LabelWithHint
                     label="Liquidsoap service label"
-                    hint="Nom exact du service Liquidsoap tel que rapporté par l'agent (ex: liquidsoap). Une incohérence affiche faussement le statut Degraded."
+                    hint="Nom exact du service Liquidsoap rapporté par l'agent. En Docker Compose multi-radio: liquidsoap_1, liquidsoap_2, etc. Doit correspondre à la clé dans ALLOWED_SERVICES de l'agent."
                     side="right"
                   />
                   <Input

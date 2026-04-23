@@ -15,9 +15,10 @@ import asyncio
 import random
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from app.auth import require_agent_token, require_agent_ws
 from app.config import settings
 from app.liquidsoap import router as liquidsoap_router
 from app.recordings import router as recordings_router
@@ -25,8 +26,8 @@ from app.streaming import router as streaming_router
 
 app = FastAPI(title="RadioOps Agent", version="0.2.0")
 
-app.include_router(liquidsoap_router)
-app.include_router(recordings_router)
+app.include_router(liquidsoap_router, dependencies=[Depends(require_agent_token)])
+app.include_router(recordings_router, dependencies=[Depends(require_agent_token)])
 app.include_router(streaming_router)
 
 
@@ -34,9 +35,9 @@ app.include_router(streaming_router)
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _run_cmd(cmd: list[str]) -> tuple[int, str]:
+def _run_cmd(cmd: list[str], timeout: int = 30) -> tuple[int, str]:
     import subprocess
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=timeout)
     return p.returncode, p.stdout
 
 
@@ -69,13 +70,16 @@ def health():
 
 
 @app.get("/status")
-def status():
+def status(_auth: None = Depends(require_agent_token)):
     if settings.MOCK_MODE:
         return _mock_services()
 
     services = {}
     for svc in settings.allowed_services:
-        code, out = _run_cmd(["sh", "-lc", f"systemctl is-active {svc} || true"])
+        try:
+            _code, out = _run_cmd(["systemctl", "is-active", svc], timeout=5)
+        except Exception as exc:
+            out = f"error: {exc}"
         active = out.strip() == "active"
         services[svc] = {
             "name": svc,
@@ -93,7 +97,7 @@ class ActionRequest(BaseModel):
 
 
 @app.post("/actions")
-def actions(payload: ActionRequest):
+def actions(payload: ActionRequest, _auth: None = Depends(require_agent_token)):
     if payload.service not in settings.allowed_services:
         raise HTTPException(status_code=400, detail=f"Service not allowed: {payload.service}")
 
@@ -103,13 +107,16 @@ def actions(payload: ActionRequest):
     if settings.MOCK_MODE:
         return {"ok": True, "output": f"[mock] {payload.action} {payload.service}: OK"}
 
-    cmd = ["sh", "-lc", f"sudo systemctl {payload.action} {payload.service}"]
+    cmd = ["sudo", "systemctl", payload.action, payload.service]
     code, out = _run_cmd(cmd)
     return {"ok": code == 0, "output": out}
 
 
 @app.websocket("/logs/tail")
 async def logs_tail(ws: WebSocket, service: str):
+    if not await require_agent_ws(ws):
+        return
+
     await ws.accept()
 
     if service not in settings.allowed_services:
@@ -136,7 +143,7 @@ async def logs_tail(ws: WebSocket, service: str):
                 await asyncio.sleep(0.5)
         else:
             proc = await asyncio.create_subprocess_exec(
-                "sh", "-lc", f"journalctl -fu {service} -n 50 --no-pager",
+                "journalctl", "-fu", service, "-n", "50", "--no-pager",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
             )

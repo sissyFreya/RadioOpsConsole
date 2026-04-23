@@ -20,7 +20,7 @@ export function LogsPage() {
   })
 
   const [nodeId, setNodeId] = React.useState<number>(1)
-  const [service, setService] = React.useState<string>('icecast2')
+  const [service, setService] = React.useState<string>('icecast')
 
   React.useEffect(() => {
     if (nodesQ.data?.length) setNodeId(nodesQ.data[0].id)

@@ -1,35 +1,45 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import shutil
 import struct
+import uuid as _uuid
 import wave
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from time import monotonic
 
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.limiter import limiter
+from app.core.logging_config import request_id_var, setup_logging
 from app.core.security import hash_password
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, get_db
 from app.models.audit import AuditEvent
 from app.models.node import Node
 from app.models.podcast import PodcastEpisode, PodcastShow
 from app.models.radio import Radio
 from app.models.user import User
-from app.services.agent_client import setup_agent_client, teardown_agent_client
-from app.services.cache import setup_cache, teardown_cache
+from app.services.agent_client import _get_client, setup_agent_client, teardown_agent_client
+from app.services.cache import cache_is_configured, cache_ping, setup_cache, teardown_cache
+from app.services.storage import storage_ping
+from app.api.deps import require_role
+
+# Configure structured JSON logging before any loggers are used.
+setup_logging()
 
 from app.api.auth import router as auth_router
 from app.api.nodes import router as nodes_router
@@ -216,8 +226,20 @@ app.add_middleware(
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-Id"],
 )
+
+
+@app.middleware("http")
+async def _request_id_middleware(request: Request, call_next: object):
+    rid = request.headers.get("X-Request-Id") or _uuid.uuid4().hex
+    token = request_id_var.set(rid)
+    try:
+        response = await call_next(request)  # type: ignore[operator]
+        response.headers["X-Request-Id"] = rid
+        return response
+    finally:
+        request_id_var.reset(token)
 
 # Prometheus metrics — restricted to internal/loopback requests only.
 _METRICS_ALLOWED_PREFIXES = ("127.", "::1", "172.", "10.", "192.168.")
@@ -242,6 +264,67 @@ except ImportError:
 @app.get("/health")
 def health():
     return {"ok": True}
+
+
+@app.get("/system/health")
+async def system_health(
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin", "ops", "viewer")),
+):
+    """Authenticated endpoint returning the health of all system components."""
+
+    # Database
+    try:
+        t0 = monotonic()
+        db.execute(text("SELECT 1"))
+        db_status: dict = {"ok": True, "latency_ms": round((monotonic() - t0) * 1000)}
+    except Exception as exc:
+        db_status = {"ok": False, "error": str(exc)[:200]}
+
+    # Redis cache
+    redis_configured = cache_is_configured()
+    if redis_configured:
+        t0 = monotonic()
+        redis_ok = await cache_ping()
+        redis_status: dict = {
+            "available": True,
+            "ok": redis_ok,
+            "latency_ms": round((monotonic() - t0) * 1000),
+        }
+    else:
+        redis_status = {"available": False, "ok": None, "note": "not configured"}
+
+    # Storage
+    storage_status = await storage_ping()
+
+    # Agents
+    nodes = db.query(Node).order_by(Node.id.asc()).all()
+
+    async def _check_agent(node: Node) -> dict:
+        try:
+            t0 = monotonic()
+            r = await _get_client().get(f"{node.agent_url}/health", timeout=5.0)
+            r.raise_for_status()
+            return {"node": node.name, "ok": True, "latency_ms": round((monotonic() - t0) * 1000)}
+        except Exception as exc:
+            return {"node": node.name, "ok": False, "error": str(exc)[:200]}
+
+    agents = await asyncio.gather(*[_check_agent(n) for n in nodes])
+
+    overall_ok = (
+        db_status["ok"]
+        and (redis_status["ok"] is not False)
+        and storage_status.get("ok", False)
+        and all(a["ok"] for a in agents)
+    )
+
+    return {
+        "ok": overall_ok,
+        "db": db_status,
+        "redis": redis_status,
+        "storage": storage_status,
+        "agents": list(agents),
+    }
 
 
 # Serve uploaded/recorded media (local mode — bypassed by storage service when S3 is active)

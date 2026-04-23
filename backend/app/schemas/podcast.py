@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class PodcastShowCreate(BaseModel):
@@ -18,14 +18,13 @@ class PodcastShowUpdate(BaseModel):
 
 
 class PodcastShowOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     title: str
     description: str | None
     artwork_url: str | None
     created_at: datetime
-
-    class Config:
-        from_attributes = True
 
 
 class PodcastEpisodeUpdate(BaseModel):
@@ -34,6 +33,8 @@ class PodcastEpisodeUpdate(BaseModel):
 
 
 class PodcastEpisodeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     show_id: int
     title: str
@@ -44,6 +45,3 @@ class PodcastEpisodeOut(BaseModel):
     created_at: datetime
     size_bytes: int | None = None
     modified_at: datetime | None = None
-
-    class Config:
-        from_attributes = True

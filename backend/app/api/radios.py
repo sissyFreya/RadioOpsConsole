@@ -1,22 +1,22 @@
-from __future__ import annotations
-
+import os
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_role
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.audit import AuditEvent
 from app.models.node import Node
 from app.models.radio import Radio
 from app.schemas.radio import RadioCreate, RadioOut, RadioPublicOut, RadioTrackOut, RadioUpdate
 from app.services.agent_client import fetch_icecast_stats, fetch_status, takeover_disable, takeover_enable, takeover_status
-from app.utils.files import safe_abs_path, safe_filename
+from app.utils.files import safe_abs_path, safe_filename, slugify
 
 router = APIRouter(prefix="/radios", tags=["radios"])
 
@@ -42,7 +42,9 @@ def _validate_track_file(filename: str, content_length: int | None) -> None:
 
 def _radio_tracks_dir(radio_id: int) -> Path:
     root = settings.media_root_path.resolve()
-    return safe_abs_path(root, f"radios/radio_{radio_id}/tracks", mkdir=True)
+    tracks_dir = safe_abs_path(root, f"radios/radio_{radio_id}/tracks")
+    tracks_dir.mkdir(parents=True, exist_ok=True)
+    return tracks_dir
 
 
 def _unique_path(dest: Path) -> Path:
@@ -97,12 +99,25 @@ def create_radio(payload: RadioCreate, db: Session = Depends(get_db), user=Depen
         description=payload.description,
         node_id=payload.node_id,
         icecast_service=payload.icecast_service,
-        liquidsoap_service=payload.liquidsoap_service,
-        mounts=payload.mounts,
+        liquidsoap_service=payload.liquidsoap_service or "",
+        mounts=payload.mounts or "",
         public_base_url=_resolve_public_base(payload.public_base_url),
         internal_base_url=payload.internal_base_url or settings.ICECAST_INTERNAL_BASE_DEFAULT,
     )
     db.add(radio)
+    db.flush()  # assigns radio.id without committing
+
+    # Auto-assign slug-based mount when the caller left it blank
+    if not radio.mounts or radio.mounts in ("/stream", ""):
+        base_slug = slugify(radio.name, fallback=f"radio-{radio.id}")
+        candidate = f"/{base_slug}"
+        conflict = db.query(Radio).filter(Radio.mounts == candidate, Radio.id != radio.id).first()
+        radio.mounts = f"/{base_slug}-{radio.id}" if conflict else candidate
+
+    # Auto-assign per-radio Liquidsoap service name when not explicitly set
+    if not radio.liquidsoap_service or radio.liquidsoap_service == "liquidsoap":
+        radio.liquidsoap_service = f"liquidsoap_{radio.id}"
+
     db.add(AuditEvent(actor=user.email, event="radio.create", target=payload.name))
     db.commit()
     db.refresh(radio)
@@ -247,7 +262,7 @@ async def get_takeover_status(
         raise HTTPException(status_code=404, detail="Node not found")
 
     try:
-        st = await takeover_status(node.agent_url)
+        st = await takeover_status(node.agent_url, radio.id)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
@@ -266,7 +281,8 @@ async def get_takeover_status(
             "host": ingest_host,
             "port": settings.LIVE_INGEST_PORT,
             "mount": settings.LIVE_INGEST_MOUNT,
-            "password_hint": settings.LIVE_INGEST_PASSWORD_HINT,
+            # Password hint is operational data — hide from read-only viewers.
+            "password_hint": settings.LIVE_INGEST_PASSWORD_HINT if user.role in ("admin", "ops") else None,
         },
     }
 
@@ -286,7 +302,7 @@ async def enable_takeover(
         raise HTTPException(status_code=404, detail="Node not found")
 
     try:
-        res = await takeover_enable(node.agent_url)
+        res = await takeover_enable(node.agent_url, radio.id)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
@@ -310,7 +326,7 @@ async def disable_takeover(
         raise HTTPException(status_code=404, detail="Node not found")
 
     try:
-        res = await takeover_disable(node.agent_url)
+        res = await takeover_disable(node.agent_url, radio.id)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Agent unreachable: {e}")
 
@@ -361,7 +377,9 @@ def list_tracks(
 
 
 @router.post("/{radio_id}/tracks/upload", response_model=RadioTrackOut)
+@limiter.limit("10/minute")
 async def upload_track(
+    request: Request,
     radio_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -372,7 +390,11 @@ async def upload_track(
         raise HTTPException(status_code=404, detail="Radio not found")
 
     # Validate extension and Content-Length header (if provided by the client)
-    _validate_track_file(file.filename or "track", file.size)
+    try:
+        _validate_track_file(file.filename or "track", file.size)
+    except HTTPException:
+        await file.close()
+        raise
 
     tracks_dir = _radio_tracks_dir(radio_id)
     safe_name = safe_filename(file.filename or "track")

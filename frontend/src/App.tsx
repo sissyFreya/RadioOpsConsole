@@ -13,6 +13,7 @@ import { AuditPage } from './pages/AuditPage'
 import { UsersPage } from './pages/UsersPage'
 import { LivePage } from './pages/LivePage'
 import { ProfilePage } from './pages/ProfilePage'
+import { SystemHealthPage } from './pages/SystemHealthPage'
 
 function Private({ children }: { children: React.ReactNode }) {
   const { token, loading } = useAuth()
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="audit" element={<AuditPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route path="system-health" element={<SystemHealthPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

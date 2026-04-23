@@ -23,6 +23,14 @@ class TestNodesCRUD:
         listed = client.get("/nodes/", headers={"Authorization": f"Bearer {admin_token}"}).json()
         assert len(listed) == 1
 
+    def test_create_rejects_non_http_agent_url(self, client, admin_token):
+        resp = client.post(
+            "/nodes/",
+            json={"name": "node1", "agent_url": "file:///etc/passwd"},
+            headers={"Authorization": f"Bearer {admin_token}"},
+        )
+        assert resp.status_code == 422
+
     def test_get_by_id(self, client, admin_token, db_session):
         node = Node(name="n1", agent_url="http://x:9000")
         db_session.add(node)

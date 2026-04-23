@@ -17,8 +17,11 @@ from typing import Any
 import httpx
 import websockets
 
+from app.core.config import settings
+
 # Module-level client — set by setup_agent_client() at startup.
 _client: httpx.AsyncClient | None = None
+_AGENT_TOKEN_HEADER = "X-RadioOps-Agent-Token"
 
 
 async def setup_agent_client() -> None:
@@ -45,12 +48,18 @@ def _get_client() -> httpx.AsyncClient:
     )
 
 
+def _agent_headers() -> dict[str, str]:
+    if not settings.AGENT_SHARED_TOKEN:
+        return {}
+    return {_AGENT_TOKEN_HEADER: settings.AGENT_SHARED_TOKEN}
+
+
 # ---------------------------------------------------------------------------
 # Agent API calls — all reuse the shared client
 # ---------------------------------------------------------------------------
 
 async def fetch_status(agent_url: str) -> dict[str, Any]:
-    r = await _get_client().get(f"{agent_url}/status", timeout=10.0)
+    r = await _get_client().get(f"{agent_url}/status", headers=_agent_headers(), timeout=10.0)
     r.raise_for_status()
     return r.json()
 
@@ -59,6 +68,7 @@ async def run_action(agent_url: str, service: str, action: str) -> dict[str, Any
     r = await _get_client().post(
         f"{agent_url}/actions",
         json={"service": service, "action": action},
+        headers=_agent_headers(),
         timeout=30.0,
     )
     r.raise_for_status()
@@ -69,6 +79,7 @@ async def start_recording(agent_url: str, recording_id: str, url: str, output_re
     r = await _get_client().post(
         f"{agent_url}/recordings/start",
         json={"recording_id": recording_id, "url": url, "output_rel_path": output_rel_path},
+        headers=_agent_headers(),
         timeout=30.0,
     )
     r.raise_for_status()
@@ -79,26 +90,42 @@ async def stop_recording(agent_url: str, recording_id: str) -> dict[str, Any]:
     r = await _get_client().post(
         f"{agent_url}/recordings/stop",
         json={"recording_id": recording_id},
+        headers=_agent_headers(),
         timeout=30.0,
     )
     r.raise_for_status()
     return r.json()
 
 
-async def takeover_status(agent_url: str) -> dict[str, Any]:
-    r = await _get_client().get(f"{agent_url}/takeover/status", timeout=10.0)
+async def takeover_status(agent_url: str, radio_id: int) -> dict[str, Any]:
+    r = await _get_client().get(
+        f"{agent_url}/takeover/status",
+        params={"radio_id": radio_id},
+        headers=_agent_headers(),
+        timeout=10.0,
+    )
     r.raise_for_status()
     return r.json()
 
 
-async def takeover_enable(agent_url: str) -> dict[str, Any]:
-    r = await _get_client().post(f"{agent_url}/takeover/enable", timeout=10.0)
+async def takeover_enable(agent_url: str, radio_id: int) -> dict[str, Any]:
+    r = await _get_client().post(
+        f"{agent_url}/takeover/enable",
+        params={"radio_id": radio_id},
+        headers=_agent_headers(),
+        timeout=10.0,
+    )
     r.raise_for_status()
     return r.json()
 
 
-async def takeover_disable(agent_url: str) -> dict[str, Any]:
-    r = await _get_client().post(f"{agent_url}/takeover/disable", timeout=10.0)
+async def takeover_disable(agent_url: str, radio_id: int) -> dict[str, Any]:
+    r = await _get_client().post(
+        f"{agent_url}/takeover/disable",
+        params={"radio_id": radio_id},
+        headers=_agent_headers(),
+        timeout=10.0,
+    )
     r.raise_for_status()
     return r.json()
 
@@ -115,6 +142,12 @@ async def ws_tail_logs(agent_url: str, service: str):
     """Connect to agent WS and yield log lines."""
     ws_url = agent_url.replace("http://", "ws://").replace("https://", "wss://")
     uri = f"{ws_url}/logs/tail?service={service}"
-    async with websockets.connect(uri, ping_interval=20, ping_timeout=20) as ws:
-        async for msg in ws:
-            yield msg
+    headers = _agent_headers()
+    try:
+        async with websockets.connect(uri, ping_interval=20, ping_timeout=20, additional_headers=headers) as ws:
+            async for msg in ws:
+                yield msg
+    except TypeError:
+        async with websockets.connect(uri, ping_interval=20, ping_timeout=20, extra_headers=headers) as ws:
+            async for msg in ws:
+                yield msg

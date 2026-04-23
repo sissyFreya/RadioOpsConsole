@@ -12,8 +12,8 @@ class Radio(Base):
     description = Column(Text, nullable=True)
     node_id = Column(Integer, ForeignKey("nodes.id", ondelete="CASCADE"), nullable=False)
 
-    icecast_service = Column(String(128), nullable=False, default="icecast2")
-    liquidsoap_service = Column(String(128), nullable=False, default="liquidsoap")
+    icecast_service = Column(String(128), nullable=False, default="icecast")
+    liquidsoap_service = Column(String(128), nullable=False, default="")
 
     # Comma-separated mounts for MVP (keep simple). Example: "/stream,/hq"
     mounts = Column(String(512), nullable=False, default="/stream")

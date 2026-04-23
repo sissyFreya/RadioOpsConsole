@@ -219,14 +219,14 @@ const SECTIONS: HelpSection[] = [
         ),
       },
       {
-        q: `La variable RADIO_ID dans docker-compose est importante`,
+        q: `L'AutoDJ lit-il les tracks de toutes les radios ?`,
         a: (
           <>
-            Le conteneur Liquidsoap utilise{' '}
-            <code className="rounded bg-muted px-1 text-[11px]">RADIO_ID</code> pour savoir quel
-            dossier de tracks lire. Si votre radio a l'ID 2, définissez{' '}
-            <code className="rounded bg-muted px-1 text-[11px]">RADIO_ID=2</code> dans l'environnement
-            Liquidsoap. Par défaut, c'est 1.
+            Oui. Liquidsoap scanne{' '}
+            <code className="rounded bg-muted px-1 text-[11px]">/data/radios</code> de façon récursive.
+            Chaque radio stocke ses tracks dans{' '}
+            <code className="rounded bg-muted px-1 text-[11px]">radio_N/tracks/</code> — aucune variable
+            d'environnement à configurer.
           </>
         ),
       },
@@ -515,10 +515,12 @@ const SECTIONS: HelpSection[] = [
         q: `Le radio est "Degraded" malgré des services actifs`,
         a: (
           <>
-            Le label de service configuré (ex. <code className="rounded bg-muted px-1 text-[11px]">icecast2</code>) ne
-            correspond pas au nom retourné par l'agent (ex. <code className="rounded bg-muted px-1 text-[11px]">icecast</code>).
-            Corrigez les champs "Icecast service label" et "Liquidsoap service label" dans les paramètres
-            du radio pour qu'ils correspondent exactement aux noms rapportés dans la section Services.
+            Vérifiez que les champs "Icecast service label" et "Liquidsoap service label" dans les paramètres
+            du radio correspondent exactement aux noms rapportés par l'agent. En Docker Compose, utilisez{' '}
+            <code className="rounded bg-muted px-1 text-[11px]">icecast</code> (pas{' '}
+            <code className="rounded bg-muted px-1 text-[11px]">icecast2</code>) et{' '}
+            <code className="rounded bg-muted px-1 text-[11px]">liquidsoap_1</code> /
+            <code className="rounded bg-muted px-1 text-[11px]">liquidsoap_2</code>.
           </>
         ),
       },

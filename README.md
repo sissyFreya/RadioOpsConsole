@@ -28,7 +28,7 @@ docker compose up --build
 
 2. Open the UI:
 - Frontend: `http://localhost:5173`
-- Backend API docs: `http://localhost:8000/docs`
+- Backend API docs: `http://localhost:8081/docs`
 
 ### Default credentials
 - Email: `admin@local`
@@ -64,6 +64,5 @@ npm run dev
 ## Production note
 This MVP is safe-by-default (no arbitrary shell execution). For production:
 - Run behind HTTPS (reverse proxy)
-- Set strong secrets (`JWT_SECRET`, admin password)
+- Set strong secrets (`JWT_SECRET`, `AGENT_SHARED_TOKEN`, admin password)
 - Disable `MOCK_MODE` on agents and ensure `journalctl` is available
-

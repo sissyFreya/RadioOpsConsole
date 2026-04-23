@@ -6,7 +6,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog'
 import { cn } from '../utils/cn'
-import { Radio, Server, Activity, ScrollText, LogOut, Users, Shield, Mic, KeyRound, Menu, X, HelpCircle, UserCircle, ChevronUp } from 'lucide-react'
+import { Radio, Server, Activity, ScrollText, LogOut, Users, Shield, Mic, KeyRound, Menu, X, HelpCircle, UserCircle, ChevronUp, HeartPulse } from 'lucide-react'
 import { RoleGate } from './RoleGate'
 import { CommandPalette } from './CommandPalette'
 import { HelpDrawer } from './HelpDrawer'
@@ -205,17 +205,18 @@ function SidebarContent({
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-        <NavItem to="/"         icon={Activity}   label={t('nav.dashboard')} onClick={onNavClick} />
-        <NavItem to="/nodes"    icon={Server}      label={t('nav.nodes')}     onClick={onNavClick} />
-        <NavItem to="/radios"   icon={Radio}       label={t('nav.radios')}    onClick={onNavClick} />
-        <NavItem to="/podcasts" icon={Mic}         label={t('nav.podcasts')}  onClick={onNavClick} />
-        <NavItem to="/logs"     icon={ScrollText}  label={t('nav.logs')}      onClick={onNavClick} />
-        <NavItem to="/actions"  icon={Activity}    label={t('nav.actions')}   onClick={onNavClick} />
+        <NavItem to="/"               icon={Activity}    label={t('nav.dashboard')} onClick={onNavClick} />
+        <NavItem to="/nodes"          icon={Server}      label={t('nav.nodes')}     onClick={onNavClick} />
+        <NavItem to="/radios"         icon={Radio}       label={t('nav.radios')}    onClick={onNavClick} />
+        <NavItem to="/podcasts"       icon={Mic}         label={t('nav.podcasts')}  onClick={onNavClick} />
+        <NavItem to="/logs"           icon={ScrollText}  label={t('nav.logs')}      onClick={onNavClick} />
+        <NavItem to="/actions"        icon={Activity}    label={t('nav.actions')}   onClick={onNavClick} />
         <RoleGate roles={['admin', 'ops']}>
-          <NavItem to="/audit"  icon={Shield}      label={t('nav.audit')}     onClick={onNavClick} />
+          <NavItem to="/audit"        icon={Shield}      label={t('nav.audit')}     onClick={onNavClick} />
         </RoleGate>
+        <NavItem to="/system-health"  icon={HeartPulse}  label={t('nav.health')}    onClick={onNavClick} />
         <RoleGate roles={['admin']}>
-          <NavItem to="/users"  icon={Users}       label={t('nav.users')}     onClick={onNavClick} />
+          <NavItem to="/users"        icon={Users}       label={t('nav.users')}     onClick={onNavClick} />
         </RoleGate>
       </nav>
 

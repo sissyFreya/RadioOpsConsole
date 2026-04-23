@@ -15,8 +15,9 @@ All callers use the four public coroutines:
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
+
+from app.utils.files import safe_abs_path
 
 if TYPE_CHECKING:
     from fastapi import Request
@@ -38,6 +39,41 @@ def _get_s3_client():
     )
 
 
+async def storage_ping() -> dict:
+    """
+    Probe the active storage backend and return a status dict.
+
+    Local: checks disk usage on MEDIA_ROOT.
+    S3:    performs a HeadBucket call.
+    """
+    from app.core.config import settings
+
+    if settings.S3_ENDPOINT:
+        try:
+            import asyncio
+            client = _get_s3_client()
+            await asyncio.get_event_loop().run_in_executor(
+                None, lambda: client.head_bucket(Bucket=settings.S3_BUCKET)
+            )
+            return {"ok": True, "type": "s3", "bucket": settings.S3_BUCKET}
+        except Exception as exc:
+            return {"ok": False, "type": "s3", "error": str(exc)[:200]}
+    else:
+        import shutil
+        try:
+            usage = shutil.disk_usage(settings.MEDIA_ROOT)
+            free_pct = round(usage.free / usage.total * 100, 1)
+            return {
+                "ok": free_pct > 5,
+                "type": "local",
+                "path": settings.MEDIA_ROOT,
+                "free_gb": round(usage.free / 1e9, 2),
+                "free_pct": free_pct,
+            }
+        except Exception as exc:
+            return {"ok": False, "type": "local", "error": str(exc)[:200]}
+
+
 async def storage_write(rel_path: str, data: bytes) -> None:
     """Persist *data* at the given relative path."""
     from app.core.config import settings
@@ -52,8 +88,7 @@ async def storage_write(rel_path: str, data: bytes) -> None:
         )
         logger.debug("S3 upload: s3://%s/%s (%d bytes)", settings.S3_BUCKET, rel_path, len(data))
     else:
-        abs_path = settings.media_root_path / rel_path
-        abs_path.parent.mkdir(parents=True, exist_ok=True)
+        abs_path = safe_abs_path(settings.media_root_path.resolve(), rel_path, mkdir=True)
         abs_path.write_bytes(data)
 
 
@@ -74,7 +109,7 @@ async def storage_read(rel_path: str) -> bytes | None:
         except client.exceptions.NoSuchKey:
             return None
     else:
-        abs_path = settings.media_root_path / rel_path
+        abs_path = safe_abs_path(settings.media_root_path.resolve(), rel_path)
         return abs_path.read_bytes() if abs_path.exists() else None
 
 
@@ -91,7 +126,7 @@ async def storage_delete(rel_path: str) -> None:
             lambda: client.delete_object(Bucket=settings.S3_BUCKET, Key=rel_path),
         )
     else:
-        abs_path = settings.media_root_path / rel_path
+        abs_path = safe_abs_path(settings.media_root_path.resolve(), rel_path)
         if abs_path.exists():
             abs_path.unlink()
 
